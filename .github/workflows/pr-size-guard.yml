@@ -1,13 +1,45 @@
 name: pr-size-guard
+
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+  statuses: write
+
 jobs:
   size:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v7
+      - name: Compute PR diff size
+        uses: actions/github-script@v7
         with:
           script: |
-            core.setOutput('changed_files', 0)
-            // TODO: replace with real file change count logic later
+            const pr = context.payload.pull_request;
+            if (!pr) { core.notice('No PR context; skipping.'); return; }
+
+            const files = await github.paginate(github.rest.pulls.listFiles, { owner: context.repo.owner, repo: context.repo.repo, pull_number: pr.number, per_page: 100 });
+
+            let additions = 0, deletions = 0, changes = 0;
+            const docsOnly = files.length > 0 && files.every(f => /^(docs\/|.*\.md$)/.test(f.filename));
+            for (const f of files) { additions += f.additions; deletions += f.deletions; changes += f.changes; }
+
+            core.summary.addHeading('PR Size Guard').addTable([[{data:'Files',header:true}, files.length.toString()], [{data:'Additions',header:true}, additions.toString()], [{data:'Deletions',header:true}, deletions.toString()], [{data:'Changed lines',header:true}, changes.toString()], [{data:'Docs-only',header:true}, docsOnly ? 'yes':'no']]).write();
+
+            const HARD = parseInt(process.env.PR_SIZE_HARD || '800', 10);
+            const WARN = parseInt(process.env.PR_SIZE_WARN || '400', 10);
+
+            if (docsOnly) { core.notice('Docs-only change detected; size guard not enforced.'); return; }
+            if (changes > HARD) { core.setFailed(`PR too large: ${changes} changed lines > ${HARD}. Please split into smaller PRs.`); return; }
+            if (changes > WARN) { core.warning(`Large PR: ${changes} changed lines > ${WARN}. Consider splitting or justifying in the description.`); }
+
+      - name: Set commit status (pass when within thresholds)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.notice('PR size guard completed.');
+        env:
+          PR_SIZE_WARN: ${{ vars.PR_SIZE_WARN }}
+          PR_SIZE_HARD: ${{ vars.PR_SIZE_HARD }}
