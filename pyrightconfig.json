@@ -2,7 +2,7 @@
   "venvPath": ".",
   "venv": ".venv",
   "pythonVersion": "3.11",
-  "include": ["app", "tests"],
+  "include": ["src", "tests"],
   "typeCheckingMode": "standard",
   "reportMissingImports": "error"
 }
