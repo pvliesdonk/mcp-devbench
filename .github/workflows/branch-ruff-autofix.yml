@@ -1,0 +1,41 @@
+name: ruff-autofix-temp
+
+on:
+  pull_request:
+    branches: [ m0/feat-core-modules, m0/feat-fastmcp-runtime ]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.event.pull_request.head.ref == 'm0/feat-core-modules' || github.event.pull_request.head.ref == 'm0/feat-fastmcp-runtime'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Add uv to PATH
+        run: |
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - name: UV sync
+        run: uv sync --all-extras --dev
+      - name: Run ruff strict autofix
+        run: uv run ruff check --fix --unsafe-fixes --select E,F,I,UP,B,SIM,RUF,PLC,PLE .
+      - name: Commit changes if any
+        run: |
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -am "chore(ci): apply ruff strict autofix (temporary)"
+            git push
+          else
+            echo 'No changes to commit'
+          fi
