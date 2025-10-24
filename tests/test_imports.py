@@ -1,5 +1,6 @@
 from __future__ import annotations
-import mcp_devbench  # noqa: F401
+
+import mcp_devbench
 
 
 def test_package_importable() -> None:

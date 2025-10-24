@@ -1,6 +1,6 @@
 from __future__ import annotations
+
 import subprocess
-import sys
 
 
 def test_markdownlint_cli2_runs() -> None:
