@@ -2,16 +2,7 @@ repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.6.9
     hooks:
-      # Strict autofix: enable broader rules and unsafe fixes on dev machines
-      - id: ruff
-        name: ruff-fix-strict
-        args: [
-          --fix,
-          --unsafe-fixes,
-          --select,
-          E,F,I,UP,B,SIM,RUF,PLC,PLE
-        ]
-      # Formatting pass (idempotent)
+      # Keep upstream ruff-format only; see local strict-fix below
       - id: ruff-format
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
@@ -22,6 +13,11 @@ repos:
       - id: check-merge-conflict
   - repo: local
     hooks:
+      - id: ruff-strict-fix
+        name: ruff-strict-fix
+        entry: ruff --fix --unsafe-fixes --select E,F,I,UP,B,SIM,RUF,PLC,PLE
+        language: system
+        types_or: [python]
       - id: markdownlint-cli2
         name: markdownlint-cli2
         entry: npx -y markdownlint-cli2
