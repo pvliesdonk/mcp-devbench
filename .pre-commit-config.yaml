@@ -2,8 +2,15 @@ repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.6.9
     hooks:
+      # Strict autofix: enable broader rules and unsafe fixes on dev machines
       - id: ruff
-        args: [--fix]
+        name: ruff-fix-strict
+        args: [
+          --fix,
+          --unsafe-fixes,
+          --select, E,F,I,UP,B,SIM,RUF,PLC,PLE,
+        ]
+      # Formatting pass (idempotent)
       - id: ruff-format
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
