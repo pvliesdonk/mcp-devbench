@@ -1,6 +1,7 @@
 """SQLite durability (M0).
 
-Table: containers(id TEXT PK, alias TEXT UNIQUE, image TEXT, is_default INT, created_at TEXT)."""
+Table: containers(id TEXT PK, alias TEXT UNIQUE, image TEXT, is_default INT, created_at TEXT).
+"""
 from __future__ import annotations
 import sqlite3
 from mcp_devbench.config import settings
@@ -24,17 +25,22 @@ audit("sqlite_initialized", path=settings.sqlite_path)
 
 
 def upsert_container(container_id: str, alias: str, image: str, is_default: int = 1) -> None:
-    conn.execute(
-        (
-            "INSERT INTO containers (id, alias, image, is_default) VALUES (?, ?, ?, ?) "
-            "ON CONFLICT(id) DO UPDATE SET alias=excluded.alias, image=excluded.image, is_default=excluded.is_default"
-        ),
-        (container_id, alias, image, is_default),
+    sql = (
+        "INSERT INTO containers (id, alias, image, is_default) "
+        "VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(id) DO UPDATE SET "
+        "alias=excluded.alias, "
+        "image=excluded.image, "
+        "is_default=excluded.is_default"
     )
+    conn.execute(sql, (container_id, alias, image, is_default))
     conn.commit()
 
 
 def find_by_alias(alias: str) -> dict | None:
-    cur = conn.execute("SELECT id, alias, image, is_default FROM containers WHERE alias = ?", (alias,))
+    cur = conn.execute(
+        "SELECT id, alias, image, is_default FROM containers WHERE alias = ?",
+        (alias,),
+    )
     row = cur.fetchone()
     return dict(zip([c[0] for c in cur.description], row)) if row else None
