@@ -67,10 +67,8 @@ Creates a new container or returns the warm default when `use_default=true`.
 #### GET `/containers/{id}` — Inspect
 Returns current container state.
 
-#### POST `/containers/{id}/attach` — Attach streams
-Upgrades to **SSE** for out‑streams; accepts stdin via a separate POST channel. Multiple simultaneous attaches are allowed.
-
-**SSE event fields**: `event: stdout|stderr|exit|heartbeat`, `data: base64` (for bytes), `meta`.
+#### POST `/containers/{id}/attach` — Attach container event stream
+Upgrades to **SSE** for container‑level events (lifecycle, health, logs if enabled). **Does not** carry exec I/O.
 
 #### POST `/exec` — Start an exec
 Starts a new exec within a container.
@@ -98,16 +96,19 @@ Starts a new exec within a container.
 }
 ```
 
-#### GET `/exec/{id}/stream` — Stream output
+#### GET `/exec/{id}/stream` — Stream exec output
 SSE stream (`stdout`/`stderr`/`exit`) or long‑poll fallback with `?poll=1&cursor=...`. Server enforces per‑container parallelism and fair scheduling.
 
-#### POST `/exec/{id}/stdin` — Send input
+**SSE data**: raw base64‑encoded bytes of the stream chunk (e.g., `SEVMTE8K` for `HELLO
+`). No JSON wrapper. Metadata (`exec_id`, `seq`, `ts`) is placed in SSE `id:` and `event:` fields and/or a separate retryable header.
+
+#### POST `/exec/{id}/stdin` — Send exec input
 `Content-Type: application/octet-stream` with chunk framing. Returns `204`.
 
-#### POST `/exec/{id}/cancel` — Cancel
+#### POST `/exec/{id}/cancel` — Cancel exec
 Transition to `Cancelled` if possible; idempotent.
 
-#### POST `/fs/read` — Read file(s)
+#### POST `/fs/read` — Read file
 ```json
 {"container_id": "ctr_...", "path": "/workspace/README.md", "offset": 0, "limit": 1048576}
 ```
@@ -151,7 +152,7 @@ Immediate removal; persistent volume may be retained if flagged.
 
 ## 3. Concurrency, Streaming & Fairness
 
-- **Per‑container exec parallelism**: default **4**; configurable via `MCP_EXEC_PARALLELISM`. Excess execs queue in FIFO by client fair share.
+- **Per‑container exec parallelism**: default **4**; configurable via `MCP_EXEC_PARALLELISM`. Excess execs are **queued and scheduled using a fair‑share algorithm across clients** (see §13).
 - **Fairness**: Weighted fair queuing by `(client_name, session_id)` with per‑client concurrency cap.
 - **Backpressure**: When output buffers exceed `MCP_STREAM_BACKLOG_BYTES` (default 8 MiB), throttle producer, then pause reads; if sustained, abort with `ResourceExhausted`.
 - **Streaming**: Prefer SSE. Each event carries `exec_id`, `seq`, `ts`. Heartbeats every 5s. Poll fallback with cursors.
@@ -163,7 +164,7 @@ Immediate removal; persistent volume may be retained if flagged.
 
 - **Roots**: All direct file APIs and tar import/export are scoped to `/workspace`. Paths are normalized and verified; symlink traversal is constrained to remain within root.
 - **ETags**: `fs.read` returns a weak ETag computed from size+mtime+hash; `fs.write` may include `expect_etag`. On mismatch → `Conflict`.
-- **Locks**: Lightweight per‑path advisory locks during writes to serialize concurrent writers (SQLite row lock + in‑process lock map).
+- **Locks**: **Cross‑process advisory locks via SQLite only**. Writers acquire a row in `files_locks` using `INSERT` (unique `path`); failure to insert implies contention → retry/backoff. A **per‑process in‑memory hint cache** may exist for fast uncontended paths, but it is non‑authoritative and best‑effort; the DB lock is the source of truth.
 - **Non‑root by default**: Container user `uid=1000,gid=1000`; `as_root=true` requires policy allow.
 
 ---
@@ -342,15 +343,7 @@ D-->>S: container handle
 S-->>C: 200 {container_id, alias:"default"}
 ```
 
-### 12.2 Attach
-```mermaid
-sequenceDiagram
-C->>S: POST /containers/{id}/attach (SSE)
-S-->>C: event:heartbeat
-C->>S: (optional) POST /exec/{id}/stdin
-```
-
-### 12.3 Exec + Stream
+### 12.2 Exec attach & I/O
 ```mermaid
 sequenceDiagram
 C->>S: POST /exec {container_id, cmd, idempotency_key}
@@ -358,9 +351,17 @@ S->>S: admit via fair queue (<= parallelism)
 S->>D: docker exec start
 S-->>C: 202 {exec_id}
 C->>S: GET /exec/{id}/stream (SSE)
-S-->>C: stdout/stderr events
+S-->>C: stdout/stderr events (base64 bytes)
+C-->>S: POST /exec/{id}/stdin (octet-stream)
 D-->>S: exit code
 S-->>C: exit event
+```
+
+### 12.3 Container attach (events)
+```mermaid
+sequenceDiagram
+C->>S: POST /containers/{id}/attach (SSE)
+S-->>C: lifecycle/heartbeat events
 ```
 
 ### 12.4 Cancel
@@ -506,10 +507,13 @@ S-->>S: resume queues/streams
 ```
 event: stdout
 id: exe_6a5f...:42
-data: eyJieXRlcyI6ICJIRUxMT1xuIn0=
+data: SEVMTE8K
 ```
 
-## 19. Appendix — HTTP Request/Response Envelopes
+## 19. Appendix — HTTP Request/Response Envelopes (optional)
+**Default for this spec:** The API examples in §2 use **flat, operation‑specific bodies** (no generic envelope).
+
+**Optional enterprise envelope mode (future):** wrap requests/responses as follows, negotiated via header `X-MCP-Envelope: v1`.
 ```json
 // Request envelope
 {
