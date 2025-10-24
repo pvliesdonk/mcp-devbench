@@ -1,48 +1,39 @@
 [project]
 name = "mcp-devbench"
-version = "0.0.1"
-description = "MCP Devbench (M0 scaffolding)"
+version = "0.0.0"
 requires-python = ">=3.11"
+readme = "README.md"
 dependencies = [
-  "pydantic>=2.9.0",
-  "pydantic-settings>=2.5.2",
-  "python-dotenv>=1.0.1",
-  "docker>=7.0.0",
-  "fastmcp>=2.0.0",
+    "fastmcp2>=0.1.0"
 ]
 
 [project.optional-dependencies]
 dev = [
-  "pytest>=8.3.0",
-  "pytest-mock>=3.14.0",
-  "ruff>=0.6.9",
-  "pyright>=1.1.387",
-  "pre-commit>=4.0.1",
+    "pytest",
+    "ruff",
+    "pyright",
+    "pre-commit",
 ]
-
-[project.scripts]
-mcp-devbench = "mcp_devbench.main:run"
-
-[tool.uv]
-# defaults
-
-[tool.pytest.ini_options]
-addopts = "-q"
-testpaths = ["tests"]
-
-[tool.ruff]
-line-length = 100
-target-version = "py311"
-[tool.ruff.lint]
-# Start lenient: only pycodestyle/pyflakes; tighten later.
-select = ["E", "F"]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/mcp_devbench"]
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
 
-[tool.hatch.build.targets.sdist]
-include = ["src/mcp_devbench/**", "pyproject.toml", "README.md", "LICENSE*"]
+[tool.ruff]
+line-length = 100
+select = [
+    "E", "F", "I", "UP", "B", "SIM", "RUF", "PLC", "PLE",
+]
+ignore = []
+exclude = [".venv", ".git", "dist", "build"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.ruff.isort]
+known-first-party = ["mcp_devbench"]
+profile = "black"
