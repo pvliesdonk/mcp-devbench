@@ -1,7 +1,7 @@
 from __future__ import annotations
 import types
 import pytest
-from app import runtime_docker
+from mcp_devbench import runtime_docker
 
 
 def test_ensure_default_creates_when_missing(monkeypatch):
