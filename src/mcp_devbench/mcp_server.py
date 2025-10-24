@@ -9,7 +9,7 @@ are also idempotent, so clients can call them anytime."""
 from fastmcp import FastMCP
 from mcp_devbench.runtime_docker import ensure_default_container
 from mcp_devbench.config import settings
-from mcp_devbench.audit import audit
+
 
 mcp = FastMCP(settings.mcp_name)
 
@@ -30,7 +30,6 @@ def default_container() -> dict:
 
 
 def boot_reconcile() -> None:
-    """Run reconciliation once and emit an audit event.
+    """Run reconciliation once.
     """
-    info = ensure_default_container()
-    audit("boot_reconciliation_complete", id=info["id"])
+    ensure_default_container()
