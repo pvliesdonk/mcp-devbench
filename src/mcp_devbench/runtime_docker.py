@@ -46,7 +46,12 @@ def ensure_default_container() -> dict:
             if c.status != "running":
                 c.start()
             audit("container_restored", alias=alias, id=row["id"])
-            return {"id": row["id"], "alias": alias, "image": row["image"], "state": "running"}
+            return {
+                "id": row["id"],
+                "alias": alias,
+                "image": row["image"],
+                "state": "running",
+            }
         except Exception:
             audit("container_missing_recreate", alias=alias)
 
@@ -60,12 +65,26 @@ def ensure_default_container() -> dict:
             stdin_open=True,
             working_dir=settings.workspace_root,
             user="1000:1000",
-            command=["bash", "-lc", "while :; do sleep 3600; done"],
+            command=[
+                "bash",
+                "-lc",
+                "while :; do sleep 3600; done",
+            ],
             host_config=cli.api.create_host_config(auto_remove=False),
         )
         created.start()
         upsert_container(created.id, alias, settings.default_image, 1)
         audit("container_created", alias=alias, id=created.id, image=settings.default_image)
-        return {"id": created.id, "alias": alias, "image": settings.default_image, "state": "running"}
+        return {
+            "id": created.id,
+            "alias": alias,
+            "image": settings.default_image,
+            "state": "running",
+        }
     except Exception as e:  # pragma: no cover
-        raise TaxonomyError("Unavailable", "failed to create default container", 503, {"err": str(e)})
+        raise TaxonomyError(
+            "Unavailable",
+            "failed to create default container",
+            503,
+            {"err": str(e)},
+        )
