@@ -41,5 +41,5 @@ jobs:
           PYTHONDONTWRITEBYTECODE: '1'
         run: uv run pytest -q
 
-      - name: Pre-commit
-        run: uv run pre-commit run --all-files
+      - name: Pre-commit (checks only)
+        run: uv run pre-commit run --all-files --hook-stage manual
