@@ -1,0 +1,35 @@
+name: Feature
+description: Plan a feature with lanes and context sizing
+labels: [feature]
+body:
+  - type: dropdown
+    id: lane
+    attributes:
+      label: Lane
+      options:
+        - A (routine)
+        - B (notify-then-go)
+        - C (design-required)
+    validations:
+      required: true
+  - type: dropdown
+    id: context
+    attributes:
+      label: Context size
+      options: [small, medium, large]
+    validations:
+      required: true
+  - type: dropdown
+    id: profile
+    attributes:
+      label: AI profile
+      options: [thinking, fast, cheap]
+    validations:
+      required: true
+  - type: textarea
+    id: goals
+    attributes:
+      label: Goals & constraints
+      description: What outcomes, guardrails, and definition-of-done?
+    validations:
+      required: true
