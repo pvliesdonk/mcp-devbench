@@ -16,7 +16,9 @@ uv run pre-commit install
 
 ## Run (HTTP transport default)
 ```bash
-uv run app/main.py
+uv run mcp-devbench
+# or
+uv run -m mcp_devbench.main
 ```
 
 ## Call the MCP tool
