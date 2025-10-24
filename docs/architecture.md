@@ -164,7 +164,7 @@ Immediate removal; persistent volume may be retained if flagged.
 
 - **Roots**: All direct file APIs and tar import/export are scoped to `/workspace`. Paths are normalized and verified; symlink traversal is constrained to remain within root.
 - **ETags**: `fs.read` returns a weak ETag computed from size+mtime+hash; `fs.write` may include `expect_etag`. On mismatch → `Conflict`.
-- **Locks**: **Cross‑process advisory locks via SQLite only**. Writers acquire a row in `files_locks` using `INSERT` (unique `path`); failure to insert implies contention → retry/backoff. A **per‑process in‑memory hint cache** may exist for fast uncontended paths, but it is non‑authoritative and best‑effort; the DB lock is the source of truth.
+- **Locks**: **Cross‑process advisory locks via SQLite only (per connection)**. Writers acquire a row in `files_locks` using `INSERT` (unique `path`); failure to insert implies contention → retry/backoff. A **per‑process in‑memory hint cache** may exist for fast uncontended paths, but it is non‑authoritative and best‑effort; the DB lock is the source of truth.
 - **Non‑root by default**: Container user `uid=1000,gid=1000`; `as_root=true` requires policy allow.
 
 ---
