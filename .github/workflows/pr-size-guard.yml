@@ -30,10 +30,13 @@ jobs:
             const files = await github.paginate(github.rest.pulls.listFiles, { owner: context.repo.owner, repo: context.repo.repo, pull_number: pr.number, per_page: 100 });
 
             let additions = 0, deletions = 0, changes = 0;
-            const docsOnly = files.length > 0 && files.every(f => /^(docs/|.*\.md$)/.test(f.filename));
+            const docsOnly = files.length > 0 && files.every(f => f.filename.startsWith('docs/') || f.filename.endsWith('.md'));
             for (const f of files) { additions += f.additions; deletions += f.deletions; changes += f.changes; }
 
-            core.summary.addHeading('PR Size Guard').addTable([[{data:'Files',header:true}, files.length.toString()], [{data:'Additions',header:true}, additions.toString()], [{data:'Deletions',header:true}, deletions.toString()], [{data:'Changed lines',header:true}, changes.toString()], [{data:'Docs-only',header:true}, docsOnly ? 'yes':'no']]).write();
+            core.summary
+              .addHeading('PR Size Guard')
+              .addTable([[{data:'Files',header:true}, files.length.toString()], [{data:'Additions',header:true}, additions.toString()], [{data:'Deletions',header:true}, deletions.toString()], [{data:'Changed lines',header:true}, changes.toString()], [{data:'Docs-only',header:true}, docsOnly ? 'yes':'no']])
+              .write();
 
             const HARD = parseInt(process.env.PR_SIZE_HARD || '800', 10);
             const WARN = parseInt(process.env.PR_SIZE_WARN || '400', 10);
