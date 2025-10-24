@@ -2,6 +2,14 @@ repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.6.9
     hooks:
+      - id: ruff
+        name: ruff-check (manual)
+        args: [check]
+        stages: [manual]
+      - id: ruff
+        name: ruff-strict-fix (commit)
+        args: [check, --fix, --unsafe-fixes]
+        stages: [commit]
       - id: ruff-format
         stages: [commit]
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -16,30 +24,15 @@ repos:
         stages: [manual, commit]
   - repo: local
     hooks:
-      # Read-only checks for CI (manual stage)
-      - id: ruff-check
-        name: ruff-check
-        entry: ruff check
-        language: system
-        types_or: [python]
-        stages: [manual]
       - id: markdownlint-cli2
-        name: markdownlint-cli2
+        name: markdownlint-cli2 (manual)
         entry: npx -y markdownlint-cli2
         language: system
         types_or: [markdown]
         pass_filenames: true
         stages: [manual]
-
-      # Local fixers (commit stage only)
-      - id: ruff-strict-fix
-        name: ruff-strict-fix
-        entry: ruff check --fix --unsafe-fixes --select E,F,I,UP,B,SIM,RUF,PLC,PLE
-        language: system
-        types_or: [python]
-        stages: [commit]
       - id: markdownlint-cli2-fix
-        name: markdownlint-cli2-fix
+        name: markdownlint-cli2-fix (commit)
         entry: npx -y markdownlint-cli2 --fix
         language: system
         types_or: [markdown]
