@@ -99,8 +99,8 @@ Starts a new exec within a container.
 #### GET `/exec/{id}/stream` — Stream exec output
 SSE stream (`stdout`/`stderr`/`exit`) or long‑poll fallback with `?poll=1&cursor=...`. Server enforces per‑container parallelism and fair scheduling.
 
-**SSE data**: raw base64‑encoded bytes of the stream chunk (e.g., `SEVMTE8K` for `HELLO
-`). No JSON wrapper. Metadata (`exec_id`, `seq`, `ts`) is placed in SSE `id:` and `event:` fields and/or a separate retryable header.
+SSE data**: raw base64‑encoded bytes of the stream chunk (e.g., `SEVMTE8\n` for `HELLO\n`
+). No JSON wrapper. Metadata (`exec_id`, `seq`, `ts`) is placed in SSE `id:` and `event:` fields and/or a separate retryable header.
 
 #### POST `/exec/{id}/stdin` — Send exec input
 `Content-Type: application/octet-stream` with chunk framing. Returns `204`.
