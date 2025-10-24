@@ -48,8 +48,8 @@ Creates a new container or returns the warm default when `use_default=true`.
 ```json
 {
   "use_default": true,
-  "alias": "team-default", 
-  "image": "ubuntu:22.04", 
+  "alias": "team-default",
+  "image": "ubuntu:22.04",
   "pin_digest": false,
   "persistent": false,
   "env": {"TZ": "UTC"},
@@ -61,7 +61,7 @@ Creates a new container or returns the warm default when `use_default=true`.
 
 ```json
 {
-  "container_id": "ctr_91d7a7d3f3d243ccb1ec", 
+  "container_id": "ctr_91d7a7d3f3d243ccb1ec",
   "alias": "team-default",
   "image": {"name": "ubuntu:22.04", "resolved": "ubuntu@sha256:..."},
   "state": "running",
@@ -87,9 +87,9 @@ Starts a new exec within a container.
 
 ```json
 {
-  "container_id": "ctr_91d7...", 
+  "container_id": "ctr_91d7...",
   "cmd": ["bash", "-lc", "python -V"],
-  "cwd": "/workspace", 
+  "cwd": "/workspace",
   "env": {"PYTHONWARNINGS": "ignore"},
   "stdin": false,
   "as_root": false,
@@ -141,7 +141,7 @@ Transition to `Cancelled` if possible; idempotent.
 ```json
 {
   "container_id": "ctr_...", "path": "/workspace/app.py",
-  "expect_etag": "W/\"b64sha1:...\"", 
+  "expect_etag": "W/\"b64sha1:...\"",
   "data_b64": "cHJpbnQoJ0hpJyk=",
   "mode": 420
 }
