@@ -20,6 +20,9 @@ dev = [
   "pre-commit>=4.0.1",
 ]
 
+[project.scripts]
+mcp-devbench = "mcp_devbench.main:run"
+
 [tool.uv]
 # defaults
 
@@ -38,9 +41,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-# Ship the "app" package as the installable module
-packages = ["app"]
+packages = ["src/mcp_devbench"]
 
 [tool.hatch.build.targets.sdist]
-# Keep sdist minimal but sufficient for local installs
-include = ["app/**", "pyproject.toml", "README.md", "LICENSE*"]
+include = ["src/mcp_devbench/**", "pyproject.toml", "README.md", "LICENSE*"]
