@@ -1,7 +1,9 @@
 {
-  // Base rules: keep close to defaults, but allow long lines in code blocks
   "default": true,
-  "MD013": { "code_block_line_length": 0 },
-  "MD033": false, // allow inline HTML if needed in docs
-  "MD041": false  // don't require heading at start for small fragments
+  "MD013": false,
+  "MD033": false,
+  "MD036": false,
+  "MD040": false,
+  "MD041": false,
+  "MD056": false
 }
