@@ -1,0 +1,22 @@
+name: Spike
+description: Time-boxed investigation with a decision output
+labels: [spike]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question / hypothesis
+    validations:
+      required: true
+  - type: textarea
+    id: plan
+    attributes:
+      label: Plan and timebox
+      description: What will you try, and for how long?
+    validations:
+      required: true
+  - type: textarea
+    id: decision
+    attributes:
+      label: Decision mechanism
+      description: How will we decide?
