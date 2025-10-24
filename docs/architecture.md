@@ -3,7 +3,7 @@
 **Lane:** C (design‑required)  
 **Scope:** Medium  
 **Profile:** Thinking  
-**Canonical ticket:** https://github.com/pvliesdonk/mcp-devbench/issues/8
+**Canonical ticket:** <https://github.com/pvliesdonk/mcp-devbench/issues/8>
 
 > This document specifies the external interfaces, runtime behaviors, persistence model, security posture, and observability for the single‑host Docker‑backed execution service used by MCP devbench. It also includes a milestone‑ordered work breakdown and sequence diagrams. Where product requirements were ambiguous, we list options with pros/cons and propose a default.
 
@@ -12,6 +12,7 @@
 ## 1. Goals & Non‑Goals
 
 ### Goals
+
 - Opaque `container_id` with optional user aliases; multiple clients can attach to the same container.
 - A single warm **default container** (Ubuntu LTS image by tag) per host; configurable; allow‑list of images/registries; opt‑in pin‑to‑digest.
 - Docker **single‑host runtime**; images are bare; run **non‑root** by default; per‑exec `as_root` flag (policy‑gated, UID 0).
@@ -25,6 +26,7 @@
 - Error taxonomy: `InvalidArgument, NotAllowed, NotFound, Conflict, ResourceExhausted, DeadlineExceeded, Internal, Unavailable, Cancelled`.
 
 ### Non‑Goals
+
 - Kubernetes orchestration (future adapter only).
 - Multi‑host scheduling.
 - Mounting privileged sockets (e.g., host Docker socket) into workloads.
@@ -32,14 +34,17 @@
 ---
 
 ## 2. External Interface (HTTP API)
+
 Transport defaults to HTTP/1.1 with chunked transfer; SSE where noted. All responses are JSON unless streaming.
 
 ### 2.1 Resources & Methods
 
 #### POST `/containers` — Spawn or get warm default
+
 Creates a new container or returns the warm default when `use_default=true`.
 
 **Request**
+
 ```json
 {
   "use_default": true,
@@ -51,7 +56,9 @@ Creates a new container or returns the warm default when `use_default=true`.
   "client": {"client_name": "cli", "session_id": "s-123"}
 }
 ```
+
 **Response**
+
 ```json
 {
   "container_id": "ctr_91d7a7d3f3d243ccb1ec", 
@@ -65,15 +72,19 @@ Creates a new container or returns the warm default when `use_default=true`.
 ```
 
 #### GET `/containers/{id}` — Inspect
+
 Returns current container state.
 
 #### POST `/containers/{id}/attach` — Attach container event stream
+
 Upgrades to **SSE** for container‑level events (lifecycle, health, logs if enabled). **Does not** carry exec I/O.
 
 #### POST `/exec` — Start an exec
+
 Starts a new exec within a container.
 
 **Request**
+
 ```json
 {
   "container_id": "ctr_91d7...", 
@@ -86,7 +97,9 @@ Starts a new exec within a container.
   "client": {"client_name": "webui", "session_id": "sess-9"}
 }
 ```
+
 **Response**
+
 ```json
 {
   "exec_id": "exe_6a5f...",
@@ -97,27 +110,34 @@ Starts a new exec within a container.
 ```
 
 #### GET `/exec/{id}/stream` — Stream exec output
+
 SSE stream (`stdout`/`stderr`/`exit`) or long‑poll fallback with `?poll=1&cursor=...`. Server enforces per‑container parallelism and fair scheduling.
 
 SSE data**: raw base64‑encoded bytes of the stream chunk (e.g., `SEVMTE8\n` for `HELLO\n`
 ). No JSON wrapper. Metadata (`exec_id`, `seq`, `ts`) is placed in SSE `id:` and `event:` fields and/or a separate retryable header.
 
 #### POST `/exec/{id}/stdin` — Send exec input
+
 `Content-Type: application/octet-stream` with chunk framing. Returns `204`.
 
 #### POST `/exec/{id}/cancel` — Cancel exec
+
 Transition to `Cancelled` if possible; idempotent.
 
 #### POST `/fs/read` — Read file
+
 ```json
 {"container_id": "ctr_...", "path": "/workspace/README.md", "offset": 0, "limit": 1048576}
 ```
+
 **Response**
+
 ```json
 {"etag": "W/\"b64sha1:...\"", "data_b64": "IyBSRUFETUUuLi4=", "mod_time": "2025-10-24T09:00:00Z"}
 ```
 
 #### POST `/fs/write` — Write with etag
+
 ```json
 {
   "container_id": "ctr_...", "path": "/workspace/app.py",
@@ -126,26 +146,33 @@ Transition to `Cancelled` if possible; idempotent.
   "mode": 420
 }
 ```
+
 **Conflicts** return `409 Conflict` with taxonomy `Conflict` when `expect_etag` mismatches.
 
 #### POST `/fs/list` — Directory listing
+
 ```json
 {"container_id": "ctr_...", "path": "/workspace", "recursive": false}
 ```
 
 #### POST `/export` — Export workspace as tar
+
 ```json
 {"container_id": "ctr_...", "include_dotfiles": true}
 ```
+
 **Response**: `application/x-tar` stream.
 
 #### POST `/import` — Import tarball into workspace
+
 `Content-Type: application/x-tar`. Rejects paths outside `/workspace`.
 
 #### POST `/containers/{id}/stop` — Graceful shutdown
+
 Stops but does not delete persistent data. Transients terminate only on **graceful service shutdown**, not idle.
 
 #### DELETE `/containers/{id}` — Delete container
+
 Immediate removal; persistent volume may be retained if flagged.
 
 ---
@@ -181,6 +208,7 @@ Immediate removal; persistent volume may be retained if flagged.
 ## 6. Persistence & Durability (SQLite)
 
 ### 6.1 Schema
+
 ```sql
 CREATE TABLE containers (
   container_id TEXT PRIMARY KEY,
@@ -240,6 +268,7 @@ CREATE TABLE config (
 ```
 
 ### 6.2 Boot Reconciliation
+
 - Enumerate Docker containers with our label `mcp.owner=devbench`.
 - Join with `containers` table:
   - If Docker container exists but state says `deleted` → remove Docker container.
@@ -248,6 +277,7 @@ CREATE TABLE config (
 - Mark containers as **orphaned** if `last_seen` older than 7 days; eligible for GC.
 
 ### 6.3 Lifecycle of the Warm Default
+
 - At boot: ensure a running container with alias `default` exists (image from `MCP_DEFAULT_IMAGE`, default `ubuntu:22.04`).
 - Never GC the warm default unless disabled.
 
@@ -266,10 +296,13 @@ CREATE TABLE config (
 ## 8. Observability
 
 ### 8.1 Audit Log (structured)
+
 Fields: `ts, actor_client, actor_session, action, subject, outcome, meta`
+
 - Example: `{ "ts":"2025-10-24T09:12:31Z", "actor_client":"webui", "action":"exec.start", "subject":"ctr_91d7.../exe_6a5f...", "outcome":"success", "meta":{"cmd":["bash","-lc","python -V"]}}`
 
 ### 8.2 Metrics (basic)
+
 - Counters: `exec_started_total`, `exec_completed_total{status}`, `container_spawned_total{persistent}`, `fs_conflict_total`, `cancel_total`, `errors_total{code}`
 - Gauges: `containers_running`, `exec_inflight`, `queue_depth`, `stream_backlog_bytes`
 - Histograms: `exec_duration_seconds`, `image_pull_seconds`, `fs_write_bytes`, `fs_read_bytes`
@@ -331,6 +364,7 @@ YAML support may be added later, layered under ENV.
 ## 12. Sequence Diagrams (Mermaid)
 
 ### 12.1 Spawn (default container)
+
 ```mermaid
 sequenceDiagram
 participant C as Client
@@ -344,6 +378,7 @@ S-->>C: 200 {container_id, alias:"default"}
 ```
 
 ### 12.2 Exec attach & I/O
+
 ```mermaid
 sequenceDiagram
 C->>S: POST /exec {container_id, cmd, idempotency_key}
@@ -358,6 +393,7 @@ S-->>C: exit event
 ```
 
 ### 12.3 Container attach (events)
+
 ```mermaid
 sequenceDiagram
 C->>S: POST /containers/{id}/attach (SSE)
@@ -365,6 +401,7 @@ S-->>C: lifecycle/heartbeat events
 ```
 
 ### 12.4 Cancel
+
 ```mermaid
 sequenceDiagram
 C->>S: POST /exec/{id}/cancel
@@ -373,6 +410,7 @@ S-->>C: 200 state: cancelled
 ```
 
 ### 12.5 Export/Import
+
 ```mermaid
 sequenceDiagram
 C->>S: POST /export
@@ -384,6 +422,7 @@ S-->>C: 200 OK
 ```
 
 ### 12.6 Graceful Shutdown
+
 ```mermaid
 sequenceDiagram
 S->>S: stop accepting new execs
@@ -393,6 +432,7 @@ S->>S: mark state in DB
 ```
 
 ### 12.7 Crash Recovery
+
 ```mermaid
 sequenceDiagram
 S->>S: boot
@@ -424,6 +464,7 @@ S-->>S: resume queues/streams
 ## 15. Milestone‑Ordered Work Breakdown
 
 ### Milestone 0 — MVP (single host, unauth, default container)
+
 - [ ] SQLite schema & migration bootstrap
 - [ ] Image allow‑list + pull resolution (no pinning yet)
 - [ ] `/containers` (spawn/get default), inspect, stop/delete
@@ -436,6 +477,7 @@ S-->>S: resume queues/streams
 - [ ] Config via ENV only
 
 ### Milestone 1 — Reliability & Auth (bearer)
+
 - [ ] Idempotency keys for `/exec`
 - [ ] Cancel & deadlines; SIGTERM→SIGKILL
 - [ ] Backpressure & fair queueing (DRR)
@@ -443,29 +485,34 @@ S-->>S: resume queues/streams
 - [ ] Persistent volume option for containers
 
 ### Milestone 2 — Security & Digest Pinning
+
 - [ ] `as_root` policy gate + per‑client allow
 - [ ] Digest pin‑to‑resolved
 - [ ] Hardened tar import (symlink rules; file type allowlist)
 - [ ] Seccomp/profile tuning + reduced caps
 
 ### Milestone 3 — OIDC & Observability Polish
+
 - [ ] OIDC (Authelia example) with audience checks
 - [ ] Metrics histograms & dashboards; basic alerting
 - [ ] Structured audit sink adapters (stdout/file)
 
 ### Milestone 4 — Persistence/Scale Niceties
+
 - [ ] Redis adapter for queues (opt‑in)
 - [ ] PATH resource to expose in‑container tool discovery
 - [ ] Patch/Delta FS APIs (apply unified diffs, rsync‑style ops)
 - [ ] Port‑forwarding into containers (policy‑gated)
 
 ### Milestone 5 — Platform Adapters (future)
+
 - [ ] Kubernetes adapter (single‑namespace) with PVC for `/workspace`
 - [ ] Policy engine (OPA/Rego or Cedar) for fine‑grained authz
 
 ---
 
 ## 16. Example Error Envelope
+
 ```json
 {
   "error": {
@@ -504,6 +551,7 @@ S-->>S: resume queues/streams
 ---
 
 ## 18. Appendix — Example SSE Event
+
 ```
 event: stdout
 id: exe_6a5f...:42
@@ -511,9 +559,11 @@ data: SEVMTE8K
 ```
 
 ## 19. Appendix — HTTP Request/Response Envelopes (optional)
+
 **Default for this spec:** The API examples in §2 use **flat, operation‑specific bodies** (no generic envelope).
 
 **Optional enterprise envelope mode (future):** wrap requests/responses as follows, negotiated via header `X-MCP-Envelope: v1`.
+
 ```json
 // Request envelope
 {

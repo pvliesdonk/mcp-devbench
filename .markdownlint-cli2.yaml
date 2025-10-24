@@ -1,0 +1,3 @@
+# markdownlint-cli2 configuration
+config: .markdownlint.jsonc
+ignores: []
