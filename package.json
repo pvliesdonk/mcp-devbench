@@ -1,0 +1,11 @@
+{
+  "name": "mcp-devbench-docs",
+  "private": true,
+  "devDependencies": {
+    "markdownlint": "^0.31.1",
+    "markdownlint-cli2": "^0.13.0"
+  },
+  "scripts": {
+    "lint:md": "markdownlint-cli2 "
+  }
+}
