@@ -408,7 +408,7 @@ S-->>S: resume queues/streams
 
 - **Admission control**: global semaphore per container `N=MCP_EXEC_PARALLELISM`.
 - **Queue discipline**: Deficit Round Robin across `client_name/session_id` queues to avoid head‑of‑line blocking.
-- **Cancellation**: cooperative first (SIGTERM), escalates (SIGKILL) after `MCP_CANCEL_GRACE_MS` (default 3000ms).
+- **Cancellation**: cooperative first (SIGTERM), escalates (SIGKILL) after `MCP_CANCEL_GRACE_MS` (default 3000 ms).
 
 ---
 
