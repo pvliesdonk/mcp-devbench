@@ -8,7 +8,7 @@ repos:
         args: [
           --fix,
           --unsafe-fixes,
-          --select, E,F,I,UP,B,SIM,RUF,PLC,PLE,
+          --select, E,F,I,UP,B,SIM,RUF,PLC,PLE
         ]
       # Formatting pass (idempotent)
       - id: ruff-format
@@ -29,7 +29,7 @@ repos:
         pass_filenames: true
       - id: markdownlint-cli2-fix
         name: markdownlint-cli2-fix
-        entry: npx -y markdownlint-cli2-fix
+        entry: npx -y --package markdownlint-cli2 markdownlint-cli2-fix
         language: system
         types_or: [markdown]
         pass_filenames: true
