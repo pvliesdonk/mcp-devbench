@@ -9,6 +9,8 @@ from docker.errors import APIError, NotFound
 from docker.models.containers import Container as DockerContainer
 
 from mcp_devbench.config import get_settings
+from mcp_devbench.managers.image_policy_manager import get_image_policy_manager
+from mcp_devbench.managers.security_manager import get_security_manager
 from mcp_devbench.models.containers import Container
 from mcp_devbench.models.database import get_db_manager
 from mcp_devbench.repositories.containers import ContainerRepository
@@ -31,6 +33,8 @@ class ContainerManager:
         self.settings = get_settings()
         self.docker_client: DockerClient = get_docker_client()
         self.db_manager = get_db_manager()
+        self.image_policy = get_image_policy_manager()
+        self.security = get_security_manager()
 
     async def create_container(
         self,
@@ -54,7 +58,12 @@ class ContainerManager:
         Raises:
             ContainerAlreadyExistsError: If alias already exists
             DockerAPIError: If Docker operations fail
+            ImagePolicyError: If image is not allowed
         """
+        # Validate and resolve image
+        resolved = await self.image_policy.resolve_image(image)
+        actual_image = resolved.resolved_ref
+
         # Generate opaque ID
         container_id = f"c_{uuid4()}"
 
@@ -86,17 +95,19 @@ class ContainerManager:
                     f"mcpdevbench_transient_{container_id}": {"bind": "/workspace", "mode": "rw"}
                 }
 
-            # Create Docker container
+            # Get security configuration
+            security_config = self.security.get_container_security_config(as_root=False)
+
+            # Create Docker container with security controls
             docker_container: DockerContainer = self.docker_client.containers.create(
-                image=image,
+                image=actual_image,
                 labels=labels,
                 volumes=volumes,
-                user="1000:1000",  # Run as non-root
-                network_mode="bridge",
                 detach=True,
                 tty=True,
                 stdin_open=True,
                 working_dir="/workspace",
+                **security_config,
             )
 
             logger.info(
@@ -105,6 +116,7 @@ class ContainerManager:
                     "container_id": container_id,
                     "docker_id": docker_container.id,
                     "image": image,
+                    "resolved_image": actual_image,
                     "alias": alias,
                 },
             )
@@ -115,7 +127,8 @@ class ContainerManager:
                 id=container_id,
                 docker_id=docker_container.id,
                 alias=alias,
-                image=image,
+                image=actual_image,
+                digest=resolved.digest,
                 persistent=persistent,
                 created_at=now,
                 last_seen=now,

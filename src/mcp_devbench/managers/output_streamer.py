@@ -117,9 +117,7 @@ class OutputStreamer:
 
                 logger.debug("Initialized output streaming", extra={"exec_id": exec_id})
 
-    async def add_output(
-        self, exec_id: str, stream: str, data: bytes
-    ) -> Optional[int]:
+    async def add_output(self, exec_id: str, stream: str, data: bytes) -> Optional[int]:
         """
         Add output chunk to the stream.
 
@@ -172,9 +170,7 @@ class OutputStreamer:
 
             return seq
 
-    async def complete(
-        self, exec_id: str, exit_code: int, usage: Dict
-    ) -> int:
+    async def complete(self, exec_id: str, exit_code: int, usage: Dict) -> int:
         """
         Mark execution as complete and add completion chunk.
 
@@ -216,9 +212,7 @@ class OutputStreamer:
 
             return seq
 
-    async def poll(
-        self, exec_id: str, after_seq: Optional[int] = None
-    ) -> tuple[List[Dict], bool]:
+    async def poll(self, exec_id: str, after_seq: Optional[int] = None) -> tuple[List[Dict], bool]:
         """
         Poll for output chunks after a given sequence number.
 

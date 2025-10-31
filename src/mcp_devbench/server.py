@@ -632,8 +632,8 @@ def main() -> None:
     )
 
     try:
-        # Run the FastMCP server
-        mcp.run(transport="stdio")
+        # Run the FastMCP server with streamable HTTP transport
+        mcp.run(transport="streamable", host=settings.host, port=settings.port)
     except KeyboardInterrupt:
         logger.info("Received keyboard interrupt, shutting down")
         sys.exit(0)

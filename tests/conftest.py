@@ -23,9 +23,7 @@ def event_loop():
 @pytest.fixture
 async def test_db_engine():
     """Create test database engine."""
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:", echo=False, future=True
-    )
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False, future=True)
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -38,9 +36,7 @@ async def test_db_engine():
 @pytest.fixture
 async def db_session(test_db_engine) -> AsyncGenerator[AsyncSession, None]:
     """Create test database session."""
-    async_session = sessionmaker(
-        test_db_engine, class_=AsyncSession, expire_on_commit=False
-    )
+    async_session = sessionmaker(test_db_engine, class_=AsyncSession, expire_on_commit=False)
 
     async with async_session() as session:
         yield session

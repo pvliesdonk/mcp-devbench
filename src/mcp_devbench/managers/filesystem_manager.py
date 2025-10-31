@@ -113,9 +113,7 @@ class FilesystemManager:
 
         # Check if path tries to escape workspace
         if not normalized.startswith(self.WORKSPACE_ROOT):
-            raise PathSecurityError(
-                path, f"Path must be under {self.WORKSPACE_ROOT}"
-            )
+            raise PathSecurityError(path, f"Path must be under {self.WORKSPACE_ROOT}")
 
         # Check for .. components (should be caught by normpath, but double-check)
         if ".." in normalized.split(posixpath.sep):
@@ -156,27 +154,25 @@ class FilesystemManager:
         """
         # Ensure content is bytes
         if isinstance(content, str):
-            hash_input = content.encode('utf-8')
+            hash_input = content.encode("utf-8")
         elif isinstance(content, bytes):
             hash_input = content
         else:
             # Handle other types (e.g., Mock objects in tests)
-            hash_input = str(content).encode('utf-8')
+            hash_input = str(content).encode("utf-8")
 
         if mtime:
             if isinstance(mtime, str):
-                hash_input += mtime.encode('utf-8')
+                hash_input += mtime.encode("utf-8")
             elif isinstance(mtime, bytes):
                 hash_input += mtime
             else:
                 # Handle other types
-                hash_input += str(mtime).encode('utf-8')
+                hash_input += str(mtime).encode("utf-8")
 
         return hashlib.sha256(hash_input).hexdigest()
 
-    async def read(
-        self, container_id: str, path: str
-    ) -> tuple[bytes, FileInfo]:
+    async def read(self, container_id: str, path: str) -> tuple[bytes, FileInfo]:
         """
         Read file from container workspace.
 
@@ -199,10 +195,7 @@ class FilesystemManager:
         try:
             # First get file stats
             stat_cmd = f"stat -c '%s|%a|%Y' {shlex.quote(normalized_path)}"
-            exec_result = container.exec_run(
-                ["sh", "-c", stat_cmd],
-                user="1000:1000"
-            )
+            exec_result = container.exec_run(["sh", "-c", stat_cmd], user="1000:1000")
 
             if exec_result.exit_code != 0:
                 raise FileNotFoundError(path)
@@ -215,10 +208,7 @@ class FilesystemManager:
 
             # Read file content
             read_cmd = f"cat {shlex.quote(normalized_path)}"
-            exec_result = container.exec_run(
-                ["sh", "-c", read_cmd],
-                user="1000:1000"
-            )
+            exec_result = container.exec_run(["sh", "-c", read_cmd], user="1000:1000")
 
             if exec_result.exit_code != 0:
                 raise FileNotFoundError(path)
@@ -230,10 +220,7 @@ class FilesystemManager:
 
             # Determine if it's a directory
             is_dir_cmd = f"test -d {shlex.quote(normalized_path)} && echo 'yes' || echo 'no'"
-            is_dir_result = container.exec_run(
-                ["sh", "-c", is_dir_cmd],
-                user="1000:1000"
-            )
+            is_dir_result = container.exec_run(["sh", "-c", is_dir_cmd], user="1000:1000")
             is_dir = is_dir_result.output.decode().strip() == "yes"
 
             file_info = FileInfo(
@@ -243,7 +230,7 @@ class FilesystemManager:
                 permissions=perms,
                 mtime=mtime,
                 etag=etag,
-                mime_type=self._guess_mime_type(normalized_path) if not is_dir else None
+                mime_type=self._guess_mime_type(normalized_path) if not is_dir else None,
             )
 
             logger.info(f"Read file {normalized_path} from container {container_id}")
@@ -288,9 +275,7 @@ class FilesystemManager:
                 try:
                     _, existing_info = await self.read(container_id, path)
                     if existing_info.etag != if_match_etag:
-                        raise FileConflictError(
-                            path, if_match_etag, existing_info.etag
-                        )
+                        raise FileConflictError(path, if_match_etag, existing_info.etag)
                 except FileNotFoundError:
                     # File doesn't exist, that's ok for new files
                     pass
@@ -299,15 +284,12 @@ class FilesystemManager:
             parent_dir = posixpath.dirname(normalized_path)
             if parent_dir != self.WORKSPACE_ROOT:
                 mkdir_cmd = f"mkdir -p {shlex.quote(parent_dir)}"
-                container.exec_run(
-                    ["sh", "-c", mkdir_cmd],
-                    user="1000:1000"
-                )
+                container.exec_run(["sh", "-c", mkdir_cmd], user="1000:1000")
 
             # Write file using Docker's put_archive API to avoid command line limits
             # This works with large files (tested up to 1GB+)
             tarstream = io.BytesIO()
-            with tarfile.open(fileobj=tarstream, mode='w') as tar:
+            with tarfile.open(fileobj=tarstream, mode="w") as tar:
                 tarinfo = tarfile.TarInfo(name=posixpath.basename(normalized_path))
                 tarinfo.size = len(content)
                 tarinfo.mtime = int(datetime.now().timestamp())
@@ -319,21 +301,15 @@ class FilesystemManager:
             tarstream.seek(0)
             # put_archive expects the path to the directory where to extract
             success = container.put_archive(
-                path=parent_dir if parent_dir else self.WORKSPACE_ROOT,
-                data=tarstream.getvalue()
+                path=parent_dir if parent_dir else self.WORKSPACE_ROOT, data=tarstream.getvalue()
             )
 
             if not success:
-                raise DockerAPIError(
-                    "Failed to write file: put_archive returned False"
-                )
+                raise DockerAPIError("Failed to write file: put_archive returned False")
 
             # Get mtime and calculate new etag
             stat_cmd = f"stat -c '%Y' {shlex.quote(normalized_path)}"
-            stat_result = container.exec_run(
-                ["sh", "-c", stat_cmd],
-                user="1000:1000"
-            )
+            stat_result = container.exec_run(["sh", "-c", stat_cmd], user="1000:1000")
             mtime_str = stat_result.output.decode().strip()
             new_etag = self._calculate_etag(content, mtime_str)
 
@@ -367,23 +343,15 @@ class FilesystemManager:
         try:
             # Use rm -rf to handle both files and directories
             delete_cmd = f"rm -rf {shlex.quote(normalized_path)}"
-            exec_result = container.exec_run(
-                ["sh", "-c", delete_cmd],
-                user="1000:1000"
-            )
+            exec_result = container.exec_run(["sh", "-c", delete_cmd], user="1000:1000")
 
             if exec_result.exit_code != 0:
                 # Check if file exists
                 test_cmd = f"test -e {shlex.quote(normalized_path)}"
-                test_result = container.exec_run(
-                    ["sh", "-c", test_cmd],
-                    user="1000:1000"
-                )
+                test_result = container.exec_run(["sh", "-c", test_cmd], user="1000:1000")
                 if test_result.exit_code != 0:
                     raise FileNotFoundError(path)
-                raise DockerAPIError(
-                    f"Failed to delete file: {exec_result.output.decode()}"
-                )
+                raise DockerAPIError(f"Failed to delete file: {exec_result.output.decode()}")
 
             logger.info(f"Deleted {normalized_path} from container {container_id}")
 
@@ -416,10 +384,7 @@ class FilesystemManager:
                 f"stat -c '%s|%a|%Y|%F' {shlex.quote(normalized_path)} 2>/dev/null || "
                 f"echo 'NOTFOUND'"
             )
-            exec_result = container.exec_run(
-                ["sh", "-c", stat_cmd],
-                user="1000:1000"
-            )
+            exec_result = container.exec_run(["sh", "-c", stat_cmd], user="1000:1000")
 
             output = exec_result.output.decode().strip()
             if output == "NOTFOUND" or exec_result.exit_code != 0:
@@ -434,14 +399,10 @@ class FilesystemManager:
             # For files, calculate etag from metadata (no need to read content)
             etag = ""
             if not is_dir:
-                etag = hashlib.sha256(
-                    f"{normalized_path}:{size}:{mtime_str}".encode()
-                ).hexdigest()
+                etag = hashlib.sha256(f"{normalized_path}:{size}:{mtime_str}".encode()).hexdigest()
             else:
                 # For directories, use a simple hash
-                etag = hashlib.sha256(
-                    f"{normalized_path}:{mtime_str}".encode()
-                ).hexdigest()
+                etag = hashlib.sha256(f"{normalized_path}:{mtime_str}".encode()).hexdigest()
 
             file_info = FileInfo(
                 path=normalized_path,
@@ -450,7 +411,7 @@ class FilesystemManager:
                 permissions=perms,
                 mtime=mtime,
                 etag=etag,
-                mime_type=self._guess_mime_type(normalized_path) if not is_dir else None
+                mime_type=self._guess_mime_type(normalized_path) if not is_dir else None,
             )
 
             logger.info(f"Got stats for {normalized_path} in container {container_id}")
@@ -459,9 +420,7 @@ class FilesystemManager:
         except APIError as e:
             raise DockerAPIError(f"Failed to stat file: {e}", e)
 
-    async def list(
-        self, container_id: str, path: str = WORKSPACE_ROOT
-    ) -> List[FileInfo]:
+    async def list(self, container_id: str, path: str = WORKSPACE_ROOT) -> List[FileInfo]:
         """
         List files in directory.
 
@@ -488,18 +447,12 @@ class FilesystemManager:
                 f"find {shlex.quote(normalized_path)} -maxdepth 1 -mindepth 1 "
                 f"-printf '%p|%s|%m|%T@|%y\\n' 2>/dev/null"
             )
-            exec_result = container.exec_run(
-                ["sh", "-c", list_cmd],
-                user="1000:1000"
-            )
+            exec_result = container.exec_run(["sh", "-c", list_cmd], user="1000:1000")
 
             if exec_result.exit_code != 0:
                 # Check if directory exists
                 test_cmd = f"test -d {shlex.quote(normalized_path)}"
-                test_result = container.exec_run(
-                    ["sh", "-c", test_cmd],
-                    user="1000:1000"
-                )
+                test_result = container.exec_run(["sh", "-c", test_cmd], user="1000:1000")
                 if test_result.exit_code != 0:
                     raise FileNotFoundError(path)
                 # Directory exists but might be empty
@@ -528,9 +481,7 @@ class FilesystemManager:
                 size = int(size_str) if not is_dir else 0
 
                 # Calculate a simple etag
-                etag = hashlib.sha256(
-                    f"{file_path}:{size}:{mtime_str}".encode()
-                ).hexdigest()
+                etag = hashlib.sha256(f"{file_path}:{size}:{mtime_str}".encode()).hexdigest()
 
                 file_info = FileInfo(
                     path=file_path,
@@ -539,13 +490,12 @@ class FilesystemManager:
                     permissions=perms,
                     mtime=mtime,
                     etag=etag,
-                    mime_type=self._guess_mime_type(file_path) if not is_dir else None
+                    mime_type=self._guess_mime_type(file_path) if not is_dir else None,
                 )
                 files.append(file_info)
 
             logger.info(
-                f"Listed {len(files)} files in {normalized_path} "
-                f"in container {container_id}"
+                f"Listed {len(files)} files in {normalized_path} in container {container_id}"
             )
             return files
 
@@ -583,9 +533,7 @@ class FilesystemManager:
         }
         return mime_types.get(ext, "application/octet-stream")
 
-    async def batch(
-        self, container_id: str, operations: List[BatchOperation]
-    ) -> BatchResult:
+    async def batch(self, container_id: str, operations: List[BatchOperation]) -> BatchResult:
         """
         Execute a batch of filesystem operations atomically.
 
@@ -667,9 +615,7 @@ class FilesystemManager:
                         except FileNotFoundError:
                             rollback_info.append((op.path, None))
 
-                        etag = await self.write(
-                            container_id, op.path, op.content, op.if_match_etag
-                        )
+                        etag = await self.write(container_id, op.path, op.content, op.if_match_etag)
                         results.append(
                             OperationResult(
                                 success=True,
@@ -689,9 +635,7 @@ class FilesystemManager:
 
                         await self.delete(container_id, op.path)
                         results.append(
-                            OperationResult(
-                                success=True, op_type=op.op_type, path=op.path
-                            )
+                            OperationResult(success=True, op_type=op.op_type, path=op.path)
                         )
 
                     elif op.op_type == OperationType.MOVE:
@@ -739,15 +683,10 @@ class FilesystemManager:
 
                 except Exception as e:
                     # Operation failed, perform rollback
-                    logger.error(
-                        f"Batch operation failed at {op.path}: {e}, "
-                        f"performing rollback"
-                    )
+                    logger.error(f"Batch operation failed at {op.path}: {e}, performing rollback")
 
                     # Best-effort rollback
-                    await self._rollback_operations(
-                        container_id, rollback_info
-                    )
+                    await self._rollback_operations(container_id, rollback_info)
 
                     results.append(
                         OperationResult(
@@ -770,8 +709,7 @@ class FilesystemManager:
             container.exec_run(["sh", "-c", cleanup_cmd], user="1000:1000")
 
             logger.info(
-                f"Completed batch of {len(operations)} operations "
-                f"in container {container_id}"
+                f"Completed batch of {len(operations)} operations in container {container_id}"
             )
             return BatchResult(success=True, results=results)
 
@@ -782,9 +720,7 @@ class FilesystemManager:
                 cleanup_cmd = f"rm -rf {shlex.quote(staging_dir)}"
                 container.exec_run(["sh", "-c", cleanup_cmd], user="1000:1000")
             except Exception as cleanup_exc:
-                logger.warning(
-                    f"Failed to clean up staging directory {staging_dir}: {cleanup_exc}"
-                )
+                logger.warning(f"Failed to clean up staging directory {staging_dir}: {cleanup_exc}")
 
             return BatchResult(
                 success=False,
@@ -877,18 +813,14 @@ class FilesystemManager:
             if include_globs or exclude_globs:
                 # Use find to filter files, then tar
                 find_cmd = " ".join(shlex.quote(p) for p in find_parts)
-                full_cmd = (
-                    f"cd {shlex.quote(normalized_path)} && {find_cmd} | tar -c"
-                )
+                full_cmd = f"cd {shlex.quote(normalized_path)} && {find_cmd} | tar -c"
                 if compress:
                     full_cmd += "z"
                 full_cmd += " -T -"
             else:
                 # Just tar everything
                 tar_flags = "czf" if compress else "cf"
-                full_cmd = (
-                    f"tar -{tar_flags} - -C {shlex.quote(normalized_path)} ."
-                )
+                full_cmd = f"tar -{tar_flags} - -C {shlex.quote(normalized_path)} ."
 
             # Execute tar command and stream output
             exec_result = container.exec_run(
@@ -903,9 +835,7 @@ class FilesystemManager:
                 if chunk:
                     yield chunk
 
-            logger.info(
-                f"Exported tar from {normalized_path} in container {container_id}"
-            )
+            logger.info(f"Exported tar from {normalized_path} in container {container_id}")
 
         except APIError as e:
             raise DockerAPIError(f"Failed to export tar: {e}", e)
@@ -950,9 +880,7 @@ class FilesystemManager:
                 async for chunk in stream:
                     total_size += len(chunk)
                     if total_size > max_bytes:
-                        raise ValueError(
-                            f"Tar archive exceeds maximum size of {max_size_mb}MB"
-                        )
+                        raise ValueError(f"Tar archive exceeds maximum size of {max_size_mb}MB")
                     chunks.append(chunk)
 
                 tar_data = b"".join(chunks)
@@ -968,9 +896,7 @@ class FilesystemManager:
             success = container.put_archive(normalized_dest, tar_data)
 
             if not success:
-                raise DockerAPIError(
-                    f"Failed to extract tar archive into {normalized_dest}"
-                )
+                raise DockerAPIError(f"Failed to extract tar archive into {normalized_dest}")
 
             # Count files created (approximate)
             count_cmd = f"find {shlex.quote(normalized_dest)} -type f | wc -l"
@@ -1013,42 +939,30 @@ class FilesystemManager:
                 for member in tar.getmembers():
                     # Check for absolute paths
                     if member.name.startswith("/"):
-                        raise PathSecurityError(
-                            member.name,
-                            "Tar contains absolute paths"
-                        )
+                        raise PathSecurityError(member.name, "Tar contains absolute paths")
 
                     # Check for parent directory references
                     if ".." in member.name.split("/"):
                         raise PathSecurityError(
-                            member.name,
-                            "Tar contains parent directory references"
+                            member.name, "Tar contains parent directory references"
                         )
 
                     # Compute final path and validate
-                    final_path = posixpath.normpath(
-                        posixpath.join(dest_path, member.name)
-                    )
+                    final_path = posixpath.normpath(posixpath.join(dest_path, member.name))
                     if not final_path.startswith(self.WORKSPACE_ROOT):
                         raise PathSecurityError(
-                            member.name,
-                            f"Tar would extract outside workspace: {final_path}"
+                            member.name, f"Tar would extract outside workspace: {final_path}"
                         )
 
                     # Check for suspicious file types
                     if member.issym() or member.islnk():
                         # Symlinks could potentially escape
-                        logger.warning(
-                            f"Tar contains symlink: {member.name}, "
-                            f"extracting anyway"
-                        )
+                        logger.warning(f"Tar contains symlink: {member.name}, extracting anyway")
 
         except tarfile.TarError as e:
             raise ValueError(f"Invalid tar archive: {e}")
 
-    async def download_file(
-        self, container_id: str, path: str
-    ) -> tuple[bytes, FileInfo]:
+    async def download_file(self, container_id: str, path: str) -> tuple[bytes, FileInfo]:
         """
         Download a single file (convenience wrapper around read).
 

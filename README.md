@@ -67,6 +67,7 @@ Configuration is managed through environment variables with the `MCP_` prefix:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `MCP_ALLOWED_REGISTRIES` | `docker.io,ghcr.io` | Comma-separated list of allowed Docker registries |
+| `MCP_DOCKER_CONFIG_JSON` | (none) | Docker authentication config in JSON format |
 | `MCP_STATE_DB` | `./state.db` | Path to SQLite state database |
 | `MCP_DRAIN_GRACE_S` | `60` | Grace period in seconds for draining operations during shutdown |
 | `MCP_TRANSIENT_GC_DAYS` | `7` | Days to keep transient containers before garbage collection |
@@ -75,6 +76,9 @@ Configuration is managed through environment variables with the `MCP_` prefix:
 | `MCP_LOG_FORMAT` | `json` | Log format (json or text) |
 | `MCP_HOST` | `0.0.0.0` | Server host to bind to |
 | `MCP_PORT` | `8000` | Server port to bind to |
+| `MCP_DEFAULT_IMAGE_ALIAS` | `python:3.11-slim` | Default image for warm container pool |
+| `MCP_WARM_POOL_ENABLED` | `true` | Enable warm container pool for fast attach |
+| `MCP_WARM_HEALTH_CHECK_INTERVAL` | `60` | Interval in seconds for warm container health checks |
 
 ### Example .env file
 ```bash
@@ -82,6 +86,8 @@ MCP_ALLOWED_REGISTRIES=docker.io,ghcr.io,registry.example.com
 MCP_STATE_DB=/data/state.db
 MCP_LOG_LEVEL=DEBUG
 MCP_LOG_FORMAT=json
+MCP_DEFAULT_IMAGE_ALIAS=python:3.11-slim
+MCP_WARM_POOL_ENABLED=true
 ```
 
 ## Development
@@ -121,7 +127,7 @@ src/mcp_devbench/
 
 ## Project Status
 
-This project has completed **Epic 1: Foundation Layer**, **Epic 2: Command Execution Engine**, **Epic 3: Filesystem Operations**, and **Epic 4: MCP Protocol Integration**:
+This project has completed **Epic 1: Foundation Layer**, **Epic 2: Command Execution Engine**, **Epic 3: Filesystem Operations**, **Epic 4: MCP Protocol Integration**, and **Epic 5: Image & Security Management**:
 
 ### Epic 1: Foundation Layer ✅
 - [x] Feature 1.1: Project Scaffold & Configuration
@@ -133,7 +139,7 @@ This project has completed **Epic 1: Foundation Layer**, **Epic 2: Command Execu
   - ExecManager with docker-py integration
   - Parallel execution with semaphore-based limiting (4 concurrent per container)
   - Resource tracking and timeout handling
-  - Root/non-root user support
+  - Root/non-root user support with security validation
 
 - [x] Feature 2.2: Output Streaming with MCP poll-based streaming
   - OutputStreamer with bounded ring buffers (64MB default)
@@ -193,13 +199,40 @@ This project has completed **Epic 1: Foundation Layer**, **Epic 2: Command Execu
   - Completion status tracking
   - Connection and backpressure management
 
+### Epic 5: Image & Security Management ✅
+- [x] Feature 5.1: Image Allow-List & Resolution
+  - ImagePolicyManager with registry validation
+  - Image reference normalization and resolution
+  - Optional digest pinning for reproducible builds
+  - Docker authentication support via MCP_DOCKER_CONFIG_JSON
+  - Automatic image pulling with caching
+  - Clear policy violation error messages
+
+- [x] Feature 5.2: Security Controls
+  - Container hardening (drop ALL capabilities, read-only root filesystem)
+  - User management (default UID 1000, as_root validation)
+  - Resource limits (512MB memory, 1 CPU, 256 PIDs)
+  - Security audit logging for privilege escalations
+  - Never allow privileged mode
+  - Network mode control
+
+- [x] Feature 5.3: Warm Container Pool
+  - Pre-warmed container for fast attach (<1s)
+  - Automatic health checks every 60 seconds
+  - Atomic claim with automatic recreation
+  - Workspace cleanup between uses
+  - Configurable via MCP_WARM_POOL_ENABLED
+
 ### Current Status
 The project now has:
-- Full container lifecycle management
-- Asynchronous command execution with streaming output
+- Full container lifecycle management with image policy enforcement
+- Asynchronous command execution with streaming output and security controls
 - Complete filesystem operations with security controls
 - MCP protocol integration with typed tool and resource endpoints
-- 78 unit and integration tests passing (100% success rate)
+- Image allow-list validation and resolution with digest pinning
+- Comprehensive security hardening (capability dropping, resource limits, audit logging)
+- Warm container pool for fast provisioning (<1s attach time)
+- 150 unit and integration tests passing (100% success rate)
 - Comprehensive error handling and resource management
 
 ## MCP Tools Reference

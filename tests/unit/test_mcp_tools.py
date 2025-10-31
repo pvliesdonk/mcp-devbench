@@ -134,9 +134,7 @@ async def test_attach_tool_container_not_found():
             return_value=mock_session
         )
         # __aexit__ should accept exception info and return None (or False) to propagate exceptions
-        mock_db_mgr.return_value.get_session.return_value.__aexit__ = AsyncMock(
-            return_value=None
-        )
+        mock_db_mgr.return_value.get_session.return_value.__aexit__ = AsyncMock(return_value=None)
 
         with patch("mcp_devbench.server.ContainerRepository") as mock_repo_class:
             mock_repo = AsyncMock()

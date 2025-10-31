@@ -71,9 +71,7 @@ async def test_stop_and_remove_container():
     manager = ContainerManager()
 
     # Create and start container
-    container = await manager.create_container(
-        image="alpine:latest", persistent=False
-    )
+    container = await manager.create_container(image="alpine:latest", persistent=False)
     await manager.start_container(container.id)
 
     # Stop container

@@ -47,9 +47,7 @@ class ExecRepository(BaseRepository[Exec]):
         Returns:
             List of active execs
         """
-        stmt = select(Exec).where(
-            Exec.container_id == container_id, Exec.ended_at.is_(None)
-        )
+        stmt = select(Exec).where(Exec.container_id == container_id, Exec.ended_at.is_(None))
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
@@ -90,8 +88,6 @@ class ExecRepository(BaseRepository[Exec]):
         from datetime import timedelta
 
         cutoff = datetime.utcnow() - timedelta(hours=hours)
-        stmt = select(Exec).where(
-            Exec.ended_at.is_not(None), Exec.ended_at < cutoff
-        )
+        stmt = select(Exec).where(Exec.ended_at.is_not(None), Exec.ended_at < cutoff)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
