@@ -1,5 +1,10 @@
 # MCP DevBench
 
+[![CI](https://github.com/pvliesdonk/mcp-devbench/actions/workflows/ci.yml/badge.svg)](https://github.com/pvliesdonk/mcp-devbench/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/pvliesdonk/mcp-devbench/branch/main/graph/badge.svg)](https://codecov.io/gh/pvliesdonk/mcp-devbench)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 MCP DevBench is a Docker container management server that implements the Model Context Protocol (MCP) for managing development environments. It provides isolated, persistent workspaces with secure command execution and filesystem operations.
 
 ## Features

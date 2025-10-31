@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+    
+    - name: Install dependencies
+      run: |
+        uv sync --extra dev
+    
+    - name: Run tests
+      run: |
+        uv run pytest --cov=mcp_devbench --cov-report=term-missing
+    
+    - name: Build package
+      run: |
+        uv build
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: dist/*
+        generate_release_notes: true
+        body: |
+          ## What's Changed
+          
+          See the full changelog in the release notes below.
+          
+          ## Installation
+          
+          ```bash
+          pip install mcp-devbench==${{ github.ref_name }}
+          ```
+          
+          Or with uv:
+          
+          ```bash
+          uv add mcp-devbench==${{ github.ref_name }}
+          ```
+    
+    - name: Publish to PyPI
+      if: startsWith(github.ref, 'refs/tags/v')
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        uv run twine upload dist/*
