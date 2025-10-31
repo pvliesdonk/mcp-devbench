@@ -27,6 +27,7 @@ class WarmPoolManager:
         self._warm_container: Optional[Container] = None
         self._lock = asyncio.Lock()
         self._health_check_task: Optional[asyncio.Task] = None
+        self._warm_creation_task: Optional[asyncio.Task] = None
         self._is_running = False
 
     async def start(self) -> None:
@@ -60,6 +61,7 @@ class WarmPoolManager:
             try:
                 await self._health_check_task
             except asyncio.CancelledError:
+                # Task cancellation is expected when stopping the warm pool manager
                 pass
 
         logger.info("Warm pool stopped")
@@ -105,16 +107,13 @@ class WarmPoolManager:
                     repo = ContainerRepository(session)
                     container = await repo.get(container.id)
                     if container:
-                        # Update alias
-                        await session.execute(
-                            "UPDATE containers SET alias = :alias WHERE id = :id",
-                            {"alias": alias, "id": container.id},
-                        )
-                        await session.commit()
+                        # Update alias using ORM
                         container.alias = alias
+                        await session.commit()
 
             # Start creating a new warm container async
-            asyncio.create_task(self._ensure_warm_container())
+            # Store task reference to handle exceptions in health check loop
+            self._warm_creation_task = asyncio.create_task(self._ensure_warm_container())
 
             return container
 
@@ -243,6 +242,19 @@ class WarmPoolManager:
         """Periodic health check loop."""
         while self._is_running:
             try:
+                # Check if warm creation task failed
+                if self._warm_creation_task and self._warm_creation_task.done():
+                    try:
+                        # This will raise if the task failed
+                        self._warm_creation_task.result()
+                    except Exception as e:
+                        logger.error(
+                            "Warm container creation task failed",
+                            extra={"error": str(e)},
+                        )
+                    finally:
+                        self._warm_creation_task = None
+
                 await asyncio.sleep(self.settings.warm_health_check_interval)
 
                 async with self._lock:

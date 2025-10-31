@@ -237,6 +237,7 @@ async def test_stop(warm_pool_manager):
         try:
             await asyncio.sleep(100)
         except asyncio.CancelledError:
+            # Task cancellation is expected during this test; ignore the exception
             pass
 
     warm_pool_manager._health_check_task = asyncio.create_task(dummy_task())
