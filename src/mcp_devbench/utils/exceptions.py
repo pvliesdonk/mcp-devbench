@@ -54,3 +54,53 @@ class DockerAPIError(MCPDevBenchError):
         """
         self.original_error = original_error
         super().__init__(message)
+
+
+class ExecError(MCPDevBenchError):
+    """Base exception for exec-related errors."""
+
+    pass
+
+
+class ExecNotFoundError(ExecError):
+    """Exception raised when an exec is not found."""
+
+    def __init__(self, exec_id: str) -> None:
+        """
+        Initialize ExecNotFoundError.
+        
+        Args:
+            exec_id: Exec ID that was not found
+        """
+        self.exec_id = exec_id
+        super().__init__(f"Exec not found: {exec_id}")
+
+
+class ExecTimeoutError(ExecError):
+    """Exception raised when an exec times out."""
+
+    def __init__(self, exec_id: str, timeout_s: int) -> None:
+        """
+        Initialize ExecTimeoutError.
+        
+        Args:
+            exec_id: Exec ID that timed out
+            timeout_s: Timeout in seconds
+        """
+        self.exec_id = exec_id
+        self.timeout_s = timeout_s
+        super().__init__(f"Exec {exec_id} timed out after {timeout_s} seconds")
+
+
+class ExecAlreadyCompletedError(ExecError):
+    """Exception raised when trying to operate on a completed exec."""
+
+    def __init__(self, exec_id: str) -> None:
+        """
+        Initialize ExecAlreadyCompletedError.
+        
+        Args:
+            exec_id: Exec ID that is already completed
+        """
+        self.exec_id = exec_id
+        super().__init__(f"Exec {exec_id} is already completed")
