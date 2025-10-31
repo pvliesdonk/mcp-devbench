@@ -319,7 +319,6 @@ async def test_fs_read_tool():
 
         # Mock file content and info
         mock_content = b"test file content"
-        mock_manager.read = AsyncMock(return_value=mock_content)
 
         from mcp_devbench.managers.filesystem_manager import FileInfo
 
@@ -332,7 +331,8 @@ async def test_fs_read_tool():
             etag="abc123",
             mime_type="text/plain",
         )
-        mock_manager.stat = AsyncMock(return_value=mock_file_info)
+        # Mock read to return tuple of (content, file_info)
+        mock_manager.read = AsyncMock(return_value=(mock_content, mock_file_info))
 
         # Test fs_read
         input_data = FileReadInput(container_id="c_test123", path="/workspace/test.txt")

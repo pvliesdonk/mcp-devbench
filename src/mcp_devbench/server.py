@@ -436,11 +436,8 @@ async def fs_read(input_data: FileReadInput) -> FileReadOutput:
     try:
         manager = FilesystemManager()
 
-        # Read file
-        content = await manager.read(input_data.container_id, input_data.path)
-
-        # Get file metadata
-        file_info = await manager.stat(input_data.container_id, input_data.path)
+        # Read file and get metadata in one call
+        content, file_info = await manager.read(input_data.container_id, input_data.path)
 
         return FileReadOutput(
             content=content,
