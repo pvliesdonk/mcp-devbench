@@ -268,17 +268,28 @@ async def test_exec_poll_tool():
         mock_manager.get_exec_result = AsyncMock(return_value=mock_result)
 
         with patch("mcp_devbench.managers.output_streamer.get_output_streamer") as mock_streamer_fn:
-            mock_streamer = MagicMock()
+            mock_streamer = AsyncMock()
             mock_streamer_fn.return_value = mock_streamer
-            mock_streamer.get_messages = MagicMock(
-                return_value=[
-                    {
-                        "seq": 1,
-                        "stream": "stdout",
-                        "data": "test output",
-                        "ts": "2025-10-31T12:00:00",
-                    }
-                ]
+            # Mock the poll method which returns (messages_list, is_complete)
+            mock_streamer.poll = AsyncMock(
+                return_value=(
+                    [
+                        {
+                            "seq": 1,
+                            "stream": "stdout",
+                            "data": "test output",
+                            "ts": "2025-10-31T12:00:00",
+                        },
+                        {
+                            "seq": 2,
+                            "exit_code": 0,
+                            "usage": {"wall_ms": 100},
+                            "ts": "2025-10-31T12:00:01",
+                            "complete": True,
+                        },
+                    ],
+                    True,  # is_complete
+                )
             )
 
             # Test exec_poll
@@ -287,11 +298,14 @@ async def test_exec_poll_tool():
             result = await server.exec_poll.fn(input_data)
 
             assert result.complete is True
-            assert len(result.messages) == 2  # 1 message + 1 completion message
+            assert len(result.messages) == 2  # 1 output message + 1 completion message
             assert result.messages[0].stream == "stdout"
             assert result.messages[0].data == "test output"
             assert result.messages[1].exit_code == 0
             assert result.messages[1].complete is True
+
+            # Verify poll was called correctly
+            mock_streamer.poll.assert_called_once_with("e_exec123", after_seq=0)
 
 
 @pytest.mark.asyncio

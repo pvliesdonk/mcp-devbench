@@ -370,43 +370,41 @@ async def exec_poll(input_data: ExecPollInput) -> ExecPollOutput:
     )
 
     try:
-        manager = ExecManager()
-
-        # Get exec result
-        result = await manager.get_exec_result(input_data.exec_id)
-
         # Get streamed output messages
         from mcp_devbench.managers.output_streamer import get_output_streamer
 
         streamer = get_output_streamer()
+
+        # Poll for messages after the specified sequence
+        stream_messages, is_complete = await streamer.poll(
+            input_data.exec_id, after_seq=input_data.after_seq
+        )
+
+        # Convert to ExecStreamMessage objects
         messages = []
-
-        # Get messages after the specified sequence
-        stream_messages = streamer.get_messages(input_data.exec_id, after_seq=input_data.after_seq)
-
         for msg in stream_messages:
-            messages.append(
-                ExecStreamMessage(
-                    seq=msg.get("seq", 0),
-                    stream=msg.get("stream"),
-                    data=msg.get("data"),
-                    ts=msg.get("ts"),
-                    complete=False,
+            # Check if it's a completion message
+            if msg.get("complete", False):
+                messages.append(
+                    ExecStreamMessage(
+                        seq=msg.get("seq", 0),
+                        exit_code=msg.get("exit_code"),
+                        usage=msg.get("usage"),
+                        complete=True,
+                    )
                 )
-            )
-
-        # If execution is complete, add final message
-        if result.is_complete:
-            messages.append(
-                ExecStreamMessage(
-                    seq=len(messages) + input_data.after_seq,
-                    exit_code=result.exit_code,
-                    usage=result.usage,
-                    complete=True,
+            else:
+                messages.append(
+                    ExecStreamMessage(
+                        seq=msg.get("seq", 0),
+                        stream=msg.get("stream"),
+                        data=msg.get("data"),
+                        ts=msg.get("ts"),
+                        complete=False,
+                    )
                 )
-            )
 
-        return ExecPollOutput(messages=messages, complete=result.is_complete)
+        return ExecPollOutput(messages=messages, complete=is_complete)
 
     except ExecNotFoundError:
         logger.warning("Exec not found for polling", extra={"exec_id": input_data.exec_id})
