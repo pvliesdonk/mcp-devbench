@@ -161,3 +161,16 @@ class FileConflictError(FilesystemError):
             f"File conflict at '{path}': expected ETag '{expected_etag}', "
             f"but found '{actual_etag}'"
         )
+
+
+class ImagePolicyError(MCPDevBenchError):
+    """Exception raised when image policy validation fails."""
+
+    def __init__(self, message: str) -> None:
+        """
+        Initialize ImagePolicyError.
+
+        Args:
+            message: Error message describing policy violation
+        """
+        super().__init__(message)

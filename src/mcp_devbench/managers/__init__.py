@@ -10,6 +10,7 @@ from .filesystem_manager import (
     OperationResult,
     OperationType,
 )
+from .image_policy_manager import ImagePolicyManager, ResolvedImage, get_image_policy_manager
 from .output_streamer import OutputStreamer, get_output_streamer
 
 __all__ = [
@@ -19,8 +20,11 @@ __all__ = [
     "ExecManager",
     "FileInfo",
     "FilesystemManager",
+    "ImagePolicyManager",
     "OperationResult",
     "OperationType",
     "OutputStreamer",
+    "ResolvedImage",
+    "get_image_policy_manager",
     "get_output_streamer",
 ]
