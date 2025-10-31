@@ -70,7 +70,9 @@ async def test_start_disabled(mock_settings, mock_container_manager):
 
 
 @pytest.mark.asyncio
-async def test_start_creates_warm_container(warm_pool_manager, mock_container_manager, mock_container):
+async def test_start_creates_warm_container(
+    warm_pool_manager, mock_container_manager, mock_container
+):
     """Test starting warm pool creates a container."""
     mock_container_manager.create_container.return_value = mock_container
 
@@ -84,13 +86,15 @@ async def test_start_creates_warm_container(warm_pool_manager, mock_container_ma
 
 
 @pytest.mark.asyncio
-async def test_claim_warm_container_success(warm_pool_manager, mock_container_manager, mock_container):
+async def test_claim_warm_container_success(
+    warm_pool_manager, mock_container_manager, mock_container
+):
     """Test claiming a warm container successfully."""
     # Set up warm container
     warm_pool_manager._warm_container = mock_container
 
     # Mock the ensure_warm_container task
-    with patch.object(warm_pool_manager, "_ensure_warm_container", return_value=None) as mock_ensure:
+    with patch.object(warm_pool_manager, "_ensure_warm_container", return_value=None):
         claimed = await warm_pool_manager.claim_warm_container()
 
     assert claimed == mock_container
@@ -137,7 +141,9 @@ async def test_ensure_warm_container(warm_pool_manager, mock_container_manager, 
 
 
 @pytest.mark.asyncio
-async def test_ensure_warm_container_already_exists(warm_pool_manager, mock_container_manager, mock_container):
+async def test_ensure_warm_container_already_exists(
+    warm_pool_manager, mock_container_manager, mock_container
+):
     """Test ensuring warm container when one already exists."""
     warm_pool_manager._warm_container = mock_container
 
@@ -158,7 +164,9 @@ async def test_ensure_warm_container_failure(warm_pool_manager, mock_container_m
 
 
 @pytest.mark.asyncio
-async def test_check_container_health_healthy(warm_pool_manager, mock_container_manager, mock_container):
+async def test_check_container_health_healthy(
+    warm_pool_manager, mock_container_manager, mock_container
+):
     """Test checking health of a healthy container."""
     # Mock Docker container
     mock_docker_container = MagicMock()
@@ -173,7 +181,9 @@ async def test_check_container_health_healthy(warm_pool_manager, mock_container_
 
 
 @pytest.mark.asyncio
-async def test_check_container_health_not_running(warm_pool_manager, mock_container_manager, mock_container):
+async def test_check_container_health_not_running(
+    warm_pool_manager, mock_container_manager, mock_container
+):
     """Test checking health of a stopped container."""
     # Mock Docker container
     mock_docker_container = MagicMock()
@@ -187,7 +197,9 @@ async def test_check_container_health_not_running(warm_pool_manager, mock_contai
 
 
 @pytest.mark.asyncio
-async def test_check_container_health_exec_failed(warm_pool_manager, mock_container_manager, mock_container):
+async def test_check_container_health_exec_failed(
+    warm_pool_manager, mock_container_manager, mock_container
+):
     """Test checking health when exec fails."""
     # Mock Docker container
     mock_docker_container = MagicMock()
@@ -202,7 +214,9 @@ async def test_check_container_health_exec_failed(warm_pool_manager, mock_contai
 
 
 @pytest.mark.asyncio
-async def test_check_container_health_not_found(warm_pool_manager, mock_container_manager, mock_container):
+async def test_check_container_health_not_found(
+    warm_pool_manager, mock_container_manager, mock_container
+):
     """Test checking health when container not found."""
     from docker.errors import NotFound
 
@@ -217,14 +231,14 @@ async def test_check_container_health_not_found(warm_pool_manager, mock_containe
 async def test_stop(warm_pool_manager):
     """Test stopping the warm pool manager."""
     warm_pool_manager._is_running = True
-    
+
     # Create a real task that we can cancel
     async def dummy_task():
         try:
             await asyncio.sleep(100)
         except asyncio.CancelledError:
             pass
-    
+
     warm_pool_manager._health_check_task = asyncio.create_task(dummy_task())
 
     await warm_pool_manager.stop()

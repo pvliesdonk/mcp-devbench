@@ -113,9 +113,7 @@ class FileWriteInput(BaseModel):
     container_id: str = Field(..., description="Container ID")
     path: str = Field(..., description="Path to file within /workspace")
     content: bytes = Field(..., description="File content to write")
-    if_match_etag: Optional[str] = Field(
-        None, description="Required etag for conditional write"
-    )
+    if_match_etag: Optional[str] = Field(None, description="Required etag for conditional write")
 
 
 class FileWriteOutput(BaseModel):

@@ -14,7 +14,8 @@ class ResourceLimits:
     """Resource limits for container."""
 
     memory_mb: Optional[int] = 512  # 512MB default
-    cpu_quota: Optional[int] = 100000  # 100% of one CPU (100000 = 1 CPU in microseconds per 100ms period)
+    # 100% of one CPU (100000 = 1 CPU in microseconds per 100ms period)
+    cpu_quota: Optional[int] = 100000
     cpu_period: Optional[int] = 100000  # 100ms period
     pids_limit: Optional[int] = 256  # Max number of processes
 
@@ -27,15 +28,15 @@ class SecurityPolicy:
     default_uid: int = 1000
     default_gid: int = 1000
     allow_root_execution: bool = False
-    
+
     # Container security
     drop_capabilities: List[str] = None
     read_only_rootfs: bool = True
     no_new_privileges: bool = True
-    
+
     # Network
     allow_network: bool = True
-    
+
     # Resource limits
     resource_limits: ResourceLimits = None
 
@@ -45,7 +46,7 @@ class SecurityPolicy:
             # Drop all capabilities by default, which is the most secure
             # Users can be given specific capabilities if needed
             self.drop_capabilities = ["ALL"]
-        
+
         if self.resource_limits is None:
             self.resource_limits = ResourceLimits()
 
@@ -89,10 +90,10 @@ class SecurityManager:
 
         # Security options
         security_opt = []
-        
+
         if policy.no_new_privileges:
             security_opt.append("no-new-privileges:true")
-        
+
         if security_opt:
             config["security_opt"] = security_opt
 
@@ -115,16 +116,16 @@ class SecurityManager:
         # Resource limits
         if policy.resource_limits:
             limits = policy.resource_limits
-            
+
             if limits.memory_mb:
                 # Memory limit in bytes
                 config["mem_limit"] = f"{limits.memory_mb}m"
-            
+
             if limits.cpu_quota and limits.cpu_period:
                 # CPU quota (microseconds per period)
                 config["cpu_quota"] = limits.cpu_quota
                 config["cpu_period"] = limits.cpu_period
-            
+
             if limits.pids_limit:
                 # PID limit
                 config["pids_limit"] = limits.pids_limit

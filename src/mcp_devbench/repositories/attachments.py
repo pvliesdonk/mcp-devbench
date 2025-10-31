@@ -53,9 +53,7 @@ class AttachmentRepository(BaseRepository[Attachment]):
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def get_by_session(
-        self, container_id: str, session_id: str
-    ) -> Attachment | None:
+    async def get_by_session(self, container_id: str, session_id: str) -> Attachment | None:
         """
         Get attachment by container and session ID.
 

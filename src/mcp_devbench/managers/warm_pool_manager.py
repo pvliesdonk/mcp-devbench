@@ -1,7 +1,6 @@
 """Warm container pool manager for fast container provisioning."""
 
 import asyncio
-from datetime import datetime
 from typing import Optional
 
 from docker.errors import NotFound
@@ -108,7 +107,7 @@ class WarmPoolManager:
                     if container:
                         # Update alias
                         await session.execute(
-                            f"UPDATE containers SET alias = :alias WHERE id = :id",
+                            "UPDATE containers SET alias = :alias WHERE id = :id",
                             {"alias": alias, "id": container.id},
                         )
                         await session.commit()

@@ -24,7 +24,7 @@ def security_manager():
 def test_default_security_policy():
     """Test default security policy initialization."""
     policy = SecurityPolicy()
-    
+
     assert policy.default_uid == 1000
     assert policy.default_gid == 1000
     assert policy.allow_root_execution is False
@@ -45,7 +45,7 @@ def test_custom_security_policy():
         read_only_rootfs=False,
         resource_limits=limits,
     )
-    
+
     assert policy.default_uid == 2000
     assert policy.default_gid == 2000
     assert policy.allow_root_execution is True
@@ -58,7 +58,7 @@ def test_custom_security_policy():
 def test_resource_limits_defaults():
     """Test resource limits default values."""
     limits = ResourceLimits()
-    
+
     assert limits.memory_mb == 512
     assert limits.cpu_quota == 100000
     assert limits.cpu_period == 100000
@@ -68,7 +68,7 @@ def test_resource_limits_defaults():
 def test_get_container_security_config_default(security_manager):
     """Test getting container security config with defaults."""
     config = security_manager.get_container_security_config()
-    
+
     assert config["user"] == "1000:1000"
     assert config["privileged"] is False
     assert config["read_only"] is True
@@ -84,7 +84,7 @@ def test_get_container_security_config_default(security_manager):
 def test_get_container_security_config_as_root(security_manager):
     """Test getting container security config for root user."""
     config = security_manager.get_container_security_config(as_root=True)
-    
+
     assert config["user"] == "0:0"
     assert config["privileged"] is False
 
@@ -100,9 +100,9 @@ def test_get_container_security_config_custom_policy(security_manager):
         allow_network=False,
         resource_limits=limits,
     )
-    
+
     config = security_manager.get_container_security_config(custom_policy=policy)
-    
+
     assert config["user"] == "2000:2000"
     assert config["read_only"] is False
     assert config["network_mode"] == "none"
@@ -115,7 +115,7 @@ def test_get_container_security_config_custom_policy(security_manager):
 def test_get_exec_security_config_default(security_manager):
     """Test getting exec security config with defaults."""
     config = security_manager.get_exec_security_config()
-    
+
     assert config["user"] == "1000"
     assert config["privileged"] is False
 
@@ -123,7 +123,7 @@ def test_get_exec_security_config_default(security_manager):
 def test_get_exec_security_config_as_root(security_manager):
     """Test getting exec security config for root user."""
     config = security_manager.get_exec_security_config(as_root=True)
-    
+
     assert config["user"] == "0"
     assert config["privileged"] is False
 
@@ -135,7 +135,7 @@ def test_validate_as_root_request(security_manager):
         image="python:3.11",
         reason="Need to install system packages",
     )
-    
+
     # Should allow but audit
     assert result is True
 
@@ -158,11 +158,11 @@ def test_security_config_never_privileged(security_manager):
     # Default config
     config = security_manager.get_container_security_config()
     assert config["privileged"] is False
-    
+
     # As root
     config = security_manager.get_container_security_config(as_root=True)
     assert config["privileged"] is False
-    
+
     # Custom policy with allow_root_execution
     policy = SecurityPolicy(allow_root_execution=True)
     config = security_manager.get_container_security_config(custom_policy=policy)
@@ -172,7 +172,7 @@ def test_security_config_never_privileged(security_manager):
 def test_security_config_drops_capabilities(security_manager):
     """Test that dangerous capabilities are dropped."""
     config = security_manager.get_container_security_config()
-    
+
     assert "cap_drop" in config
     assert "ALL" in config["cap_drop"]
 
@@ -180,7 +180,7 @@ def test_security_config_drops_capabilities(security_manager):
 def test_resource_limits_applied(security_manager):
     """Test that resource limits are applied correctly."""
     config = security_manager.get_container_security_config()
-    
+
     # Default limits
     assert config["mem_limit"] == "512m"
     assert config["cpu_quota"] == 100000
@@ -197,9 +197,9 @@ def test_custom_resource_limits(security_manager):
         pids_limit=512,
     )
     policy = SecurityPolicy(resource_limits=limits)
-    
+
     config = security_manager.get_container_security_config(custom_policy=policy)
-    
+
     assert config["mem_limit"] == "2048m"
     assert config["cpu_quota"] == 200000
     assert config["cpu_period"] == 100000
@@ -210,7 +210,7 @@ def test_network_control_enabled(security_manager):
     """Test network control when enabled."""
     policy = SecurityPolicy(allow_network=True)
     config = security_manager.get_container_security_config(custom_policy=policy)
-    
+
     assert config["network_mode"] == "bridge"
 
 
@@ -218,7 +218,7 @@ def test_network_control_disabled(security_manager):
     """Test network control when disabled."""
     policy = SecurityPolicy(allow_network=False)
     config = security_manager.get_container_security_config(custom_policy=policy)
-    
+
     assert config["network_mode"] == "none"
 
 
@@ -226,7 +226,7 @@ def test_read_only_rootfs_enabled(security_manager):
     """Test read-only root filesystem when enabled."""
     policy = SecurityPolicy(read_only_rootfs=True)
     config = security_manager.get_container_security_config(custom_policy=policy)
-    
+
     assert config["read_only"] is True
 
 
@@ -234,7 +234,7 @@ def test_read_only_rootfs_disabled(security_manager):
     """Test read-only root filesystem when disabled."""
     policy = SecurityPolicy(read_only_rootfs=False)
     config = security_manager.get_container_security_config(custom_policy=policy)
-    
+
     assert config["read_only"] is False
 
 
@@ -242,7 +242,7 @@ def test_no_new_privileges_enabled(security_manager):
     """Test no-new-privileges security option when enabled."""
     policy = SecurityPolicy(no_new_privileges=True)
     config = security_manager.get_container_security_config(custom_policy=policy)
-    
+
     assert "security_opt" in config
     assert "no-new-privileges:true" in config["security_opt"]
 
@@ -251,6 +251,6 @@ def test_no_new_privileges_disabled(security_manager):
     """Test no-new-privileges security option when disabled."""
     policy = SecurityPolicy(no_new_privileges=False)
     config = security_manager.get_container_security_config(custom_policy=policy)
-    
+
     # Should not have security_opt if no_new_privileges is False
     assert "security_opt" not in config

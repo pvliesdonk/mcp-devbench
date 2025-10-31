@@ -158,8 +158,7 @@ class FileConflictError(FilesystemError):
         self.expected_etag = expected_etag
         self.actual_etag = actual_etag
         super().__init__(
-            f"File conflict at '{path}': expected ETag '{expected_etag}', "
-            f"but found '{actual_etag}'"
+            f"File conflict at '{path}': expected ETag '{expected_etag}', but found '{actual_etag}'"
         )
 
 

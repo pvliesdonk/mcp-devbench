@@ -33,9 +33,7 @@ def setup_logging(log_level: str = "INFO", log_format: str = "json") -> None:
             timestamp=True,
         )
     else:
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
+        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     handler.setFormatter(formatter)
     logger.addHandler(handler)

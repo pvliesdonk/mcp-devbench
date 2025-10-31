@@ -94,9 +94,7 @@ class ExecManager:
             Semaphore for the container
         """
         if container_id not in self._container_semaphores:
-            self._container_semaphores[container_id] = asyncio.Semaphore(
-                self.MAX_CONCURRENT_EXECS
-            )
+            self._container_semaphores[container_id] = asyncio.Semaphore(self.MAX_CONCURRENT_EXECS)
         return self._container_semaphores[container_id]
 
     async def execute(
@@ -175,9 +173,7 @@ class ExecManager:
 
         # Execute command in background
         task = asyncio.create_task(
-            self._execute_command(
-                exec_id, container_id, cmd, cwd, env, as_root, timeout_s
-            )
+            self._execute_command(exec_id, container_id, cmd, cwd, env, as_root, timeout_s)
         )
         self._active_execs[exec_id] = task
 
@@ -477,9 +473,7 @@ class ExecManager:
             logger.info("Cancelled exec", extra={"exec_id": exec_id})
 
             # Add cancellation message to output stream
-            await self.output_streamer.add_output(
-                exec_id, "stderr", b"[CANCELLED]\n"
-            )
+            await self.output_streamer.add_output(exec_id, "stderr", b"[CANCELLED]\n")
 
             # Complete with exit code -2 for cancelled
             await self.output_streamer.complete(exec_id, -2, {"cancelled": True})

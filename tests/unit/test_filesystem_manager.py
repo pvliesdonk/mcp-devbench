@@ -77,9 +77,7 @@ class TestPathValidation:
 class TestReadOperation:
     """Tests for read operation."""
 
-    async def test_read_existing_file(
-        self, filesystem_manager, mock_docker_client, mock_container
-    ):
+    async def test_read_existing_file(self, filesystem_manager, mock_docker_client, mock_container):
         """Test reading an existing file."""
         # Setup mocks
         mock_docker_client.containers.get.return_value = mock_container
@@ -142,9 +140,7 @@ class TestReadOperation:
 class TestWriteOperation:
     """Tests for write operation."""
 
-    async def test_write_new_file(
-        self, filesystem_manager, mock_docker_client, mock_container
-    ):
+    async def test_write_new_file(self, filesystem_manager, mock_docker_client, mock_container):
         """Test writing a new file."""
         # Setup mocks
         mock_docker_client.containers.get.return_value = mock_container
@@ -230,10 +226,7 @@ class TestWriteOperation:
         # Execute and verify
         with pytest.raises(FileConflictError):
             await filesystem_manager.write(
-                "c_test123",
-                "test.txt",
-                b"new content",
-                if_match_etag="wrong_etag"
+                "c_test123", "test.txt", b"new content", if_match_etag="wrong_etag"
             )
 
 
@@ -292,9 +285,7 @@ class TestDeleteOperation:
 class TestStatOperation:
     """Tests for stat operation."""
 
-    async def test_stat_existing_file(
-        self, filesystem_manager, mock_docker_client, mock_container
-    ):
+    async def test_stat_existing_file(self, filesystem_manager, mock_docker_client, mock_container):
         """Test getting stats for existing file."""
         # Setup mocks
         mock_docker_client.containers.get.return_value = mock_container
@@ -334,9 +325,7 @@ class TestStatOperation:
         assert file_info.permissions == "644"
         assert isinstance(file_info.etag, str)
 
-    async def test_stat_directory(
-        self, filesystem_manager, mock_docker_client, mock_container
-    ):
+    async def test_stat_directory(self, filesystem_manager, mock_docker_client, mock_container):
         """Test getting stats for directory."""
         # Setup mocks
         mock_docker_client.containers.get.return_value = mock_container
@@ -358,9 +347,7 @@ class TestStatOperation:
 class TestListOperation:
     """Tests for list operation."""
 
-    async def test_list_directory(
-        self, filesystem_manager, mock_docker_client, mock_container
-    ):
+    async def test_list_directory(self, filesystem_manager, mock_docker_client, mock_container):
         """Test listing directory contents."""
         # Setup mocks
         mock_docker_client.containers.get.return_value = mock_container
@@ -572,12 +559,8 @@ class TestBatchOperations:
 
         # Execute batch
         operations = [
-            BatchOperation(
-                op_type=OperationType.WRITE, path="file1.txt", content=b"content1"
-            ),
-            BatchOperation(
-                op_type=OperationType.WRITE, path="file2.txt", content=b"content2"
-            ),
+            BatchOperation(op_type=OperationType.WRITE, path="file1.txt", content=b"content1"),
+            BatchOperation(op_type=OperationType.WRITE, path="file2.txt", content=b"content2"),
         ]
         result = await filesystem_manager.batch("c_test123", operations)
 
@@ -645,9 +628,7 @@ class TestBatchOperations:
         # Execute batch
         operations = [
             BatchOperation(op_type=OperationType.READ, path="file1.txt"),
-            BatchOperation(
-                op_type=OperationType.WRITE, path="file2.txt", content=b"new content"
-            ),
+            BatchOperation(op_type=OperationType.WRITE, path="file2.txt", content=b"new content"),
             BatchOperation(op_type=OperationType.DELETE, path="file3.txt"),
         ]
         result = await filesystem_manager.batch("c_test123", operations)
@@ -873,12 +854,8 @@ class TestBatchOperations:
 
         # Execute batch where second operation fails
         operations = [
-            BatchOperation(
-                op_type=OperationType.WRITE, path="file1.txt", content=b"content1"
-            ),
-            BatchOperation(
-                op_type=OperationType.WRITE, path="file2.txt", content=b"content2"
-            ),
+            BatchOperation(op_type=OperationType.WRITE, path="file1.txt", content=b"content1"),
+            BatchOperation(op_type=OperationType.WRITE, path="file2.txt", content=b"content2"),
         ]
         result = await filesystem_manager.batch("c_test123", operations)
 
@@ -912,9 +889,7 @@ class TestBatchOperations:
 class TestImportExportOperations:
     """Tests for import/export operations."""
 
-    async def test_export_tar_basic(
-        self, filesystem_manager, mock_docker_client, mock_container
-    ):
+    async def test_export_tar_basic(self, filesystem_manager, mock_docker_client, mock_container):
         """Test basic tar export."""
         mock_docker_client.containers.get.return_value = mock_container
 
@@ -948,9 +923,7 @@ class TestImportExportOperations:
 
         # Execute export with compression
         chunks = []
-        async for chunk in filesystem_manager.export_tar(
-            "c_test123", "/workspace", compress=True
-        ):
+        async for chunk in filesystem_manager.export_tar("c_test123", "/workspace", compress=True):
             chunks.append(chunk)
 
         # Verify
@@ -981,9 +954,7 @@ class TestImportExportOperations:
         assert len(received_chunks) == 3
         assert received_chunks == chunks_data
 
-    async def test_import_tar_basic(
-        self, filesystem_manager, mock_docker_client, mock_container
-    ):
+    async def test_import_tar_basic(self, filesystem_manager, mock_docker_client, mock_container):
         """Test basic tar import."""
         mock_docker_client.containers.get.return_value = mock_container
 
@@ -1013,9 +984,7 @@ class TestImportExportOperations:
         mock_container.exec_run.side_effect = exec_side_effect
 
         # Execute import
-        result = await filesystem_manager.import_tar(
-            "c_test123", "/workspace", tar_data=tar_data
-        )
+        result = await filesystem_manager.import_tar("c_test123", "/workspace", tar_data=tar_data)
 
         # Verify
         assert result["bytes_written"] == len(tar_data)
@@ -1060,9 +1029,7 @@ class TestImportExportOperations:
         mock_container.exec_run.side_effect = exec_side_effect
 
         # Execute import with streaming
-        result = await filesystem_manager.import_tar(
-            "c_test123", "/workspace", stream=tar_stream()
-        )
+        result = await filesystem_manager.import_tar("c_test123", "/workspace", stream=tar_stream())
 
         # Verify
         assert result["bytes_written"] == len(tar_data)
@@ -1088,9 +1055,7 @@ class TestImportExportOperations:
 
         assert "exceeds maximum size" in str(exc_info.value)
 
-    async def test_validate_tar_rejects_absolute_paths(
-        self, filesystem_manager
-    ):
+    async def test_validate_tar_rejects_absolute_paths(self, filesystem_manager):
         """Test tar validation rejects absolute paths."""
         import io
         import tarfile
@@ -1109,9 +1074,7 @@ class TestImportExportOperations:
 
         assert "absolute paths" in str(exc_info.value)
 
-    async def test_validate_tar_rejects_parent_refs(
-        self, filesystem_manager
-    ):
+    async def test_validate_tar_rejects_parent_refs(self, filesystem_manager):
         """Test tar validation rejects parent directory references."""
         import io
         import tarfile
@@ -1130,9 +1093,7 @@ class TestImportExportOperations:
 
         assert "parent directory" in str(exc_info.value).lower()
 
-    async def test_validate_tar_rejects_escape_attempts(
-        self, filesystem_manager
-    ):
+    async def test_validate_tar_rejects_escape_attempts(self, filesystem_manager):
         """Test tar validation prevents workspace escape."""
         import io
         import tarfile
@@ -1150,9 +1111,7 @@ class TestImportExportOperations:
         with pytest.raises(PathSecurityError):
             await filesystem_manager._validate_tar_contents(tar_data, "/workspace")
 
-    async def test_validate_tar_accepts_valid_paths(
-        self, filesystem_manager
-    ):
+    async def test_validate_tar_accepts_valid_paths(self, filesystem_manager):
         """Test tar validation accepts valid paths."""
         import io
         import tarfile
@@ -1170,9 +1129,7 @@ class TestImportExportOperations:
         # Validate should succeed (not raise)
         await filesystem_manager._validate_tar_contents(tar_data, "/workspace")
 
-    async def test_download_file(
-        self, filesystem_manager, mock_docker_client, mock_container
-    ):
+    async def test_download_file(self, filesystem_manager, mock_docker_client, mock_container):
         """Test single file download."""
         mock_docker_client.containers.get.return_value = mock_container
 
@@ -1196,9 +1153,7 @@ class TestImportExportOperations:
         ]
 
         # Execute download
-        content, file_info = await filesystem_manager.download_file(
-            "c_test123", "file.txt"
-        )
+        content, file_info = await filesystem_manager.download_file("c_test123", "file.txt")
 
         # Verify
         assert content == b"downloaded file"
