@@ -18,6 +18,7 @@ from .security_manager import (
     SecurityPolicy,
     get_security_manager,
 )
+from .warm_pool_manager import WarmPoolManager, get_warm_pool_manager
 
 __all__ = [
     "BatchOperation",
@@ -34,7 +35,9 @@ __all__ = [
     "ResolvedImage",
     "SecurityManager",
     "SecurityPolicy",
+    "WarmPoolManager",
     "get_image_policy_manager",
     "get_output_streamer",
     "get_security_manager",
+    "get_warm_pool_manager",
 ]

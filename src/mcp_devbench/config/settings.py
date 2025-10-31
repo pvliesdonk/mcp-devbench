@@ -68,6 +68,22 @@ class Settings(BaseSettings):
         description="Server port to bind to",
     )
 
+    # Warm pool configuration
+    default_image_alias: str = Field(
+        default="python:3.11-slim",
+        description="Default image for warm container pool",
+    )
+
+    warm_pool_enabled: bool = Field(
+        default=True,
+        description="Enable warm container pool for fast attach",
+    )
+
+    warm_health_check_interval: int = Field(
+        default=60,
+        description="Interval in seconds for warm container health checks",
+    )
+
     @property
     def allowed_registries_list(self) -> List[str]:
         """Parse allowed registries into a list."""
