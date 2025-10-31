@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  mcp-devbench:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mcp-devbench
+    environment:
+      # Configuration
+      - MCP_ALLOWED_REGISTRIES=docker.io,ghcr.io
+      - MCP_STATE_DB=/data/state.db
+      - MCP_DRAIN_GRACE_S=60
+      - MCP_TRANSIENT_GC_DAYS=7
+      - MCP_LOG_LEVEL=INFO
+      - MCP_LOG_FORMAT=json
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8000
+    volumes:
+      # Mount Docker socket for container management (sibling Docker pattern)
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Persistent state database
+      - mcp-devbench-data:/data
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    networks:
+      - mcp-devbench-net
+
+networks:
+  mcp-devbench-net:
+    driver: bridge
+
+volumes:
+  mcp-devbench-data:
+    driver: local

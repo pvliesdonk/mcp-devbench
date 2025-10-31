@@ -1,0 +1,46 @@
+[project]
+name = "mcp-devbench"
+version = "0.1.0"
+description = "MCP DevBench - Docker container management server with MCP protocol support"
+readme = "README.md"
+authors = [
+    { name = "copilot-swe-agent[bot]", email = "198982749+Copilot@users.noreply.github.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp>=2.0.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "docker>=7.0.0",
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.13.0",
+    "aiosqlite>=0.19.0",
+    "python-json-logger>=2.0.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.1.0",
+]
+
+[project.scripts]
+mcp-devbench = "mcp_devbench.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+ignore = []
