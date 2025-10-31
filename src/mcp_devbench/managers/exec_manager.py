@@ -39,7 +39,7 @@ class ExecResult:
     ):
         """
         Initialize ExecResult.
-        
+
         Args:
             exec_id: Exec ID
             exit_code: Exit code (None if still running)
@@ -84,10 +84,10 @@ class ExecManager:
     def _get_container_semaphore(self, container_id: str) -> asyncio.Semaphore:
         """
         Get or create semaphore for a container.
-        
+
         Args:
             container_id: Container ID
-            
+
         Returns:
             Semaphore for the container
         """
@@ -109,7 +109,7 @@ class ExecManager:
     ) -> str:
         """
         Execute a command in a container asynchronously.
-        
+
         Args:
             container_id: Container ID
             cmd: Command and arguments to execute
@@ -118,10 +118,10 @@ class ExecManager:
             as_root: Run as root user (UID 0) instead of default user (UID 1000)
             timeout_s: Timeout in seconds
             idempotency_key: Optional idempotency key to prevent duplicate execution
-            
+
         Returns:
             Exec ID
-            
+
         Raises:
             ContainerNotFoundError: If container not found
             DockerAPIError: If Docker operations fail
@@ -206,7 +206,7 @@ class ExecManager:
     ) -> None:
         """
         Internal method to execute command and update database.
-        
+
         Args:
             exec_id: Exec ID
             container_id: Container ID
@@ -230,7 +230,10 @@ class ExecManager:
                     container = await container_repo.get(container_id)
 
                     if not container:
-                        logger.error("Container not found during exec", extra={"container_id": container_id})
+                        logger.error(
+                            "Container not found during exec",
+                            extra={"container_id": container_id},
+                        )
                         return
 
                 # Run Docker exec with timeout
@@ -285,7 +288,10 @@ class ExecManager:
                     )
 
                 except NotFound:
-                    logger.error("Docker container not found during exec", extra={"container_id": container_id})
+                    logger.error(
+                        "Docker container not found during exec",
+                        extra={"container_id": container_id},
+                    )
                     exit_code = -1
                     usage = {"wall_ms": int((time.time() - start_time) * 1000)}
 
@@ -316,13 +322,13 @@ class ExecManager:
     async def get_exec_result(self, exec_id: str) -> ExecResult:
         """
         Get the result of an execution.
-        
+
         Args:
             exec_id: Exec ID
-            
+
         Returns:
             ExecResult with status and output
-            
+
         Raises:
             ExecNotFoundError: If exec not found
         """
@@ -348,14 +354,14 @@ class ExecManager:
     ) -> tuple[List[Dict], bool]:
         """
         Poll for output chunks after a given sequence number.
-        
+
         Args:
             exec_id: Exec ID
             after_seq: Return chunks after this sequence (None for all)
-            
+
         Returns:
             Tuple of (chunks, is_complete)
-            
+
         Raises:
             ExecNotFoundError: If exec not found
         """
@@ -373,10 +379,10 @@ class ExecManager:
     async def get_active_execs(self, container_id: str) -> List[Exec]:
         """
         Get active execs for a container.
-        
+
         Args:
             container_id: Container ID
-            
+
         Returns:
             List of active execs
         """
@@ -387,10 +393,10 @@ class ExecManager:
     async def cleanup_old_execs(self, hours: int = 24) -> int:
         """
         Clean up old completed execs and their output buffers.
-        
+
         Args:
             hours: Age in hours
-            
+
         Returns:
             Number of execs deleted
         """
@@ -413,14 +419,14 @@ class ExecManager:
     async def cancel(self, exec_id: str) -> None:
         """
         Cancel a running execution.
-        
+
         This will mark the exec as cancelled. Since docker-py exec_run is synchronous
         and doesn't support direct cancellation, we mark it as cancelled and it will
         be terminated when possible.
-        
+
         Args:
             exec_id: Exec ID to cancel
-            
+
         Raises:
             ExecNotFoundError: If exec not found
         """
@@ -434,7 +440,10 @@ class ExecManager:
 
             # Check if already completed
             if exec_entry.ended_at is not None:
-                logger.info("Exec already completed, skipping cancellation", extra={"exec_id": exec_id})
+                logger.info(
+                    "Exec already completed, skipping cancellation",
+                    extra={"exec_id": exec_id},
+                )
                 return
 
         # Mark as cancelled
@@ -458,10 +467,10 @@ class ExecManager:
     async def cleanup_idempotency_keys(self, max_age_hours: int = 24) -> int:
         """
         Clean up expired idempotency keys.
-        
+
         Args:
             max_age_hours: Maximum age in hours
-            
+
         Returns:
             Number of keys deleted
         """

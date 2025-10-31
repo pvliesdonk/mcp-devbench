@@ -17,7 +17,7 @@ class AttachmentRepository(BaseRepository[Attachment]):
     def __init__(self, session: AsyncSession) -> None:
         """
         Initialize attachment repository.
-        
+
         Args:
             session: Database session
         """
@@ -26,10 +26,10 @@ class AttachmentRepository(BaseRepository[Attachment]):
     async def get_by_container(self, container_id: str) -> List[Attachment]:
         """
         Get all attachments for a container.
-        
+
         Args:
             container_id: Container ID
-            
+
         Returns:
             List of attachments
         """
@@ -40,10 +40,10 @@ class AttachmentRepository(BaseRepository[Attachment]):
     async def get_active_by_container(self, container_id: str) -> List[Attachment]:
         """
         Get active (not detached) attachments for a container.
-        
+
         Args:
             container_id: Container ID
-            
+
         Returns:
             List of active attachments
         """
@@ -58,11 +58,11 @@ class AttachmentRepository(BaseRepository[Attachment]):
     ) -> Attachment | None:
         """
         Get attachment by container and session ID.
-        
+
         Args:
             container_id: Container ID
             session_id: Session ID
-            
+
         Returns:
             Attachment or None if not found
         """
@@ -77,10 +77,10 @@ class AttachmentRepository(BaseRepository[Attachment]):
     async def detach(self, attachment_id: int) -> Attachment | None:
         """
         Mark attachment as detached.
-        
+
         Args:
             attachment_id: Attachment ID
-            
+
         Returns:
             Updated attachment or None if not found
         """
@@ -94,10 +94,10 @@ class AttachmentRepository(BaseRepository[Attachment]):
     async def detach_all_for_container(self, container_id: str) -> int:
         """
         Detach all active attachments for a container.
-        
+
         Args:
             container_id: Container ID
-            
+
         Returns:
             Number of attachments detached
         """

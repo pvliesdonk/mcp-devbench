@@ -16,7 +16,7 @@ class BaseRepository(Generic[T]):
     def __init__(self, session: AsyncSession, model: type[T]) -> None:
         """
         Initialize repository.
-        
+
         Args:
             session: Database session
             model: SQLAlchemy model class
@@ -27,10 +27,10 @@ class BaseRepository(Generic[T]):
     async def get(self, id: str | int) -> T | None:
         """
         Get entity by primary key.
-        
+
         Args:
             id: Primary key value
-            
+
         Returns:
             Entity or None if not found
         """
@@ -39,11 +39,11 @@ class BaseRepository(Generic[T]):
     async def get_all(self, limit: int | None = None, offset: int = 0) -> List[T]:
         """
         Get all entities.
-        
+
         Args:
             limit: Maximum number of results
             offset: Number of results to skip
-            
+
         Returns:
             List of entities
         """
@@ -56,10 +56,10 @@ class BaseRepository(Generic[T]):
     async def create(self, entity: T) -> T:
         """
         Create a new entity.
-        
+
         Args:
             entity: Entity to create
-            
+
         Returns:
             Created entity
         """
@@ -71,10 +71,10 @@ class BaseRepository(Generic[T]):
     async def update(self, entity: T) -> T:
         """
         Update an existing entity.
-        
+
         Args:
             entity: Entity to update
-            
+
         Returns:
             Updated entity
         """
@@ -85,7 +85,7 @@ class BaseRepository(Generic[T]):
     async def delete(self, entity: T) -> None:
         """
         Delete an entity.
-        
+
         Args:
             entity: Entity to delete
         """

@@ -21,10 +21,10 @@ class DockerClientManager:
     def get_client(self) -> DockerClient:
         """
         Get or create Docker client instance.
-        
+
         Returns:
             DockerClient instance
-            
+
         Raises:
             DockerException: If unable to connect to Docker daemon
         """
@@ -62,7 +62,7 @@ _docker_manager: DockerClientManager | None = None
 def get_docker_client() -> DockerClient:
     """
     Get global Docker client instance.
-    
+
     Returns:
         DockerClient instance
     """

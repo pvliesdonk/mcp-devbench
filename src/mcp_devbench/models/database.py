@@ -29,7 +29,7 @@ class DatabaseManager:
     def get_engine(self) -> AsyncEngine:
         """
         Get or create async database engine.
-        
+
         Returns:
             AsyncEngine instance
         """
@@ -53,7 +53,7 @@ class DatabaseManager:
     def get_session_maker(self) -> async_sessionmaker[AsyncSession]:
         """
         Get or create session maker.
-        
+
         Returns:
             async_sessionmaker instance
         """
@@ -87,7 +87,7 @@ class DatabaseManager:
     async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
         """
         Get an async database session.
-        
+
         Yields:
             AsyncSession instance
         """
@@ -108,7 +108,7 @@ _db_manager: DatabaseManager | None = None
 def get_db_manager() -> DatabaseManager:
     """
     Get global database manager instance.
-    
+
     Returns:
         DatabaseManager instance
     """
@@ -121,7 +121,7 @@ def get_db_manager() -> DatabaseManager:
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     """
     Get an async database session (dependency injection helper).
-    
+
     Yields:
         AsyncSession instance
     """
