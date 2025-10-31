@@ -1,12 +1,11 @@
 """Unit tests for ExecManager."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
 
 import pytest
 
-from mcp_devbench.managers.exec_manager import ExecManager, ExecResult
+from mcp_devbench.managers.exec_manager import ExecManager
 from mcp_devbench.models.execs import Exec
 from mcp_devbench.repositories.execs import ExecRepository
 from mcp_devbench.utils.exceptions import ContainerNotFoundError, ExecNotFoundError
@@ -34,9 +33,9 @@ def mock_exec_entry():
     exec_entry = Exec(
         exec_id="e_test123",
         container_id="c_test123",
-        cmd={"cmd": ["echo", "test"], "cwd": "/workspace", "env": {}},
+        cmd=["echo", "test"],
         as_root=False,
-        started_at=datetime.utcnow(),
+        started_at=datetime.now(timezone.utc),
     )
     return exec_entry
 
@@ -62,8 +61,8 @@ async def test_execute_creates_exec_entry(db_session, mock_container):
             docker_id="docker123",
             image="alpine:latest",
             persistent=False,
-            created_at=datetime.utcnow(),
-            last_seen=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            last_seen=datetime.now(timezone.utc),
             status="running",
         )
         container_repo = ContainerRepository(db_session)
@@ -86,7 +85,7 @@ async def test_execute_creates_exec_entry(db_session, mock_container):
         exec_entry = await exec_repo.get(exec_id)
         assert exec_entry is not None
         assert exec_entry.container_id == "c_test123"
-        assert exec_entry.cmd["cmd"] == ["echo", "test"]
+        assert exec_entry.cmd == ["echo", "test"]
         assert exec_entry.as_root is False
 
 
@@ -132,8 +131,8 @@ async def test_execute_with_as_root(db_session):
             docker_id="docker123",
             image="alpine:latest",
             persistent=False,
-            created_at=datetime.utcnow(),
-            last_seen=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            last_seen=datetime.now(timezone.utc),
             status="running",
         )
         container_repo = ContainerRepository(db_session)
@@ -168,10 +167,10 @@ async def test_get_exec_result(db_session):
         exec_entry = Exec(
             exec_id="e_test123",
             container_id="c_test123",
-            cmd={"cmd": ["echo", "test"], "cwd": "/workspace", "env": {}},
+            cmd=["echo", "test"],
             as_root=False,
-            started_at=datetime.utcnow(),
-            ended_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
+            ended_at=datetime.now(timezone.utc),
             exit_code=0,
             usage={"wall_ms": 100},
         )
@@ -223,9 +222,9 @@ async def test_get_active_execs(db_session):
         active_exec = Exec(
             exec_id="e_active",
             container_id="c_test123",
-            cmd={"cmd": ["sleep", "10"], "cwd": "/workspace", "env": {}},
+            cmd=["sleep", "10"],
             as_root=False,
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
         )
         await exec_repo.create(active_exec)
         
@@ -233,10 +232,10 @@ async def test_get_active_execs(db_session):
         completed_exec = Exec(
             exec_id="e_completed",
             container_id="c_test123",
-            cmd={"cmd": ["echo", "done"], "cwd": "/workspace", "env": {}},
+            cmd=["echo", "done"],
             as_root=False,
-            started_at=datetime.utcnow(),
-            ended_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
+            ended_at=datetime.now(timezone.utc),
             exit_code=0,
         )
         await exec_repo.create(completed_exec)
@@ -263,11 +262,11 @@ async def test_cleanup_old_execs(db_session):
         
         # Create old completed exec
         from datetime import timedelta
-        old_time = datetime.utcnow() - timedelta(hours=25)
+        old_time = datetime.now(timezone.utc) - timedelta(hours=25)
         old_exec = Exec(
             exec_id="e_old",
             container_id="c_test123",
-            cmd={"cmd": ["echo", "old"], "cwd": "/workspace", "env": {}},
+            cmd=["echo", "old"],
             as_root=False,
             started_at=old_time,
             ended_at=old_time,
@@ -326,8 +325,8 @@ async def test_idempotency_key(db_session):
             docker_id="docker123",
             image="alpine:latest",
             persistent=False,
-            created_at=datetime.utcnow(),
-            last_seen=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            last_seen=datetime.now(timezone.utc),
             status="running",
         )
         container_repo = ContainerRepository(db_session)
@@ -367,9 +366,9 @@ async def test_cancel_exec(db_session):
         exec_entry = Exec(
             exec_id="e_test123",
             container_id="c_test123",
-            cmd={"cmd": ["sleep", "100"], "cwd": "/workspace", "env": {}},
+            cmd=["sleep", "100"],
             as_root=False,
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
         )
         exec_repo = ExecRepository(db_session)
         await exec_repo.create(exec_entry)
@@ -410,8 +409,8 @@ async def test_cleanup_idempotency_keys():
         
         # Add keys with different ages
         from datetime import timedelta
-        old_time = datetime.utcnow() - timedelta(hours=25)
-        recent_time = datetime.utcnow()
+        old_time = datetime.now(timezone.utc) - timedelta(hours=25)
+        recent_time = datetime.now(timezone.utc)
         
         manager._idempotency_keys["old_key"] = ("e_old", old_time)
         manager._idempotency_keys["recent_key"] = ("e_recent", recent_time)

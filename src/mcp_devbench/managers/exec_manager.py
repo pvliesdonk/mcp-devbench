@@ -2,7 +2,7 @@
 
 import asyncio
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from uuid import uuid4
 
@@ -132,7 +132,7 @@ class ExecManager:
             if idempotency_key in self._idempotency_keys:
                 existing_exec_id, created_at = self._idempotency_keys[idempotency_key]
                 # Check if key is still valid (24hr TTL)
-                age = (datetime.utcnow() - created_at).total_seconds()
+                age = (datetime.now(timezone.utc) - created_at).total_seconds()
                 if age < 86400:  # 24 hours
                     logger.info(
                         "Returning existing exec for idempotency key",
@@ -148,7 +148,7 @@ class ExecManager:
 
         # Store idempotency key if provided
         if idempotency_key:
-            self._idempotency_keys[idempotency_key] = (exec_id, datetime.utcnow())
+            self._idempotency_keys[idempotency_key] = (exec_id, datetime.now(timezone.utc))
 
         # Verify container exists
         async with self.db_manager.get_session() as session:
@@ -159,11 +159,11 @@ class ExecManager:
                 raise ContainerNotFoundError(container_id)
 
             # Create exec entry in database
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             exec_entry = Exec(
                 exec_id=exec_id,
                 container_id=container_id,
-                cmd={"cmd": cmd, "cwd": cwd, "env": env or {}, "idempotency_key": idempotency_key},
+                cmd=cmd,
                 as_root=as_root,
                 started_at=now,
             )
@@ -220,6 +220,7 @@ class ExecManager:
 
         start_time = time.time()
         exit_code = None
+        usage = {}  # Initialize usage early to avoid UnboundLocalError
 
         async with semaphore:
             try:
@@ -232,21 +233,26 @@ class ExecManager:
                         logger.error("Container not found during exec", extra={"container_id": container_id})
                         return
 
-                # Run Docker exec
+                # Run Docker exec with timeout
                 try:
                     docker_container = self.docker_client.containers.get(container.docker_id)
 
                     # Determine user
                     user = "0" if as_root else "1000"
 
-                    # Create exec instance
-                    exec_instance = docker_container.exec_run(
-                        cmd=cmd,
-                        workdir=cwd,
-                        environment=env,
-                        user=user,
-                        demux=True,  # Separate stdout and stderr
-                    )
+                    # Run exec_run in a thread to avoid blocking the event loop
+                    # and wrap with timeout
+                    async def run_exec():
+                        return await asyncio.to_thread(
+                            docker_container.exec_run,
+                            cmd=cmd,
+                            workdir=cwd,
+                            environment=env,
+                            user=user,
+                            demux=True,  # Separate stdout and stderr
+                        )
+
+                    exec_instance = await asyncio.wait_for(run_exec(), timeout=timeout_s)
 
                     # Get exit code and output
                     exit_code = exec_instance.exit_code
@@ -258,10 +264,6 @@ class ExecManager:
                         await self.output_streamer.add_output(exec_id, "stdout", stdout_data)
                     if stderr_data:
                         await self.output_streamer.add_output(exec_id, "stderr", stderr_data)
-
-                    # Decode output for logging
-                    stdout = stdout_data.decode("utf-8", errors="replace")
-                    stderr = stderr_data.decode("utf-8", errors="replace")
 
                     # Calculate wall time
                     wall_ms = int((time.time() - start_time) * 1000)
@@ -422,13 +424,18 @@ class ExecManager:
         Raises:
             ExecNotFoundError: If exec not found
         """
-        # Verify exec exists
+        # Verify exec exists and check if already completed
         async with self.db_manager.get_session() as session:
             exec_repo = ExecRepository(session)
             exec_entry = await exec_repo.get(exec_id)
 
             if not exec_entry:
                 raise ExecNotFoundError(exec_id)
+            
+            # Check if already completed
+            if exec_entry.ended_at is not None:
+                logger.info("Exec already completed, skipping cancellation", extra={"exec_id": exec_id})
+                return
 
         # Mark as cancelled
         self._cancelled[exec_id] = True
@@ -445,8 +452,8 @@ class ExecManager:
                 exec_id, "stderr", b"[CANCELLED]\n"
             )
 
-        # Complete with exit code -2 for cancelled
-        await self.output_streamer.complete(exec_id, -2, {"cancelled": True})
+            # Complete with exit code -2 for cancelled
+            await self.output_streamer.complete(exec_id, -2, {"cancelled": True})
 
     async def cleanup_idempotency_keys(self, max_age_hours: int = 24) -> int:
         """
@@ -460,7 +467,7 @@ class ExecManager:
         """
         from datetime import timedelta
 
-        cutoff = datetime.utcnow() - timedelta(hours=max_age_hours)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
 
         keys_to_delete = []
         for key, (exec_id, created_at) in self._idempotency_keys.items():

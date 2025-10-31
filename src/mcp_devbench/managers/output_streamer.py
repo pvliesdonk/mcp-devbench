@@ -3,7 +3,7 @@
 import asyncio
 from collections import deque
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Deque, Dict, List, Optional
 
 from mcp_devbench.utils import get_logger
@@ -163,7 +163,7 @@ class OutputStreamer:
                 seq=seq,
                 stream=stream,
                 data=data,
-                ts=datetime.utcnow(),
+                ts=datetime.now(timezone.utc),
             )
 
             # Add to buffer
@@ -195,7 +195,7 @@ class OutputStreamer:
                 seq=seq,
                 exit_code=exit_code,
                 usage=usage,
-                ts=datetime.utcnow(),
+                ts=datetime.now(timezone.utc),
             )
 
             if exec_id in self._buffers:
@@ -308,7 +308,7 @@ class OutputStreamer:
                     if buffer:
                         # Check age of last chunk
                         last_chunk = buffer[-1]
-                        age = (datetime.utcnow() - last_chunk.ts).total_seconds()
+                        age = (datetime.now(timezone.utc) - last_chunk.ts).total_seconds()
                         if age > max_age_seconds:
                             exec_ids_to_clean.append(exec_id)
 
