@@ -304,3 +304,121 @@ async def test_semaphore_limits_concurrent_execs():
         
         # Check initial value
         assert sem1._value == ExecManager.MAX_CONCURRENT_EXECS
+
+
+@pytest.mark.asyncio
+async def test_idempotency_key(db_session):
+    """Test idempotency key prevents duplicate execution."""
+    with patch("mcp_devbench.managers.exec_manager.get_docker_client") as mock_docker, \
+         patch("mcp_devbench.managers.exec_manager.get_db_manager") as mock_db_mgr:
+        
+        mock_session_cm = AsyncMock()
+        mock_session_cm.__aenter__ = AsyncMock(return_value=db_session)
+        mock_session_cm.__aexit__ = AsyncMock(return_value=None)
+        mock_db_mgr.return_value.get_session = MagicMock(return_value=mock_session_cm)
+        
+        # Create container
+        from mcp_devbench.models.containers import Container
+        from mcp_devbench.repositories.containers import ContainerRepository
+        
+        container = Container(
+            id="c_test123",
+            docker_id="docker123",
+            image="alpine:latest",
+            persistent=False,
+            created_at=datetime.utcnow(),
+            last_seen=datetime.utcnow(),
+            status="running",
+        )
+        container_repo = ContainerRepository(db_session)
+        await container_repo.create(container)
+        
+        manager = ExecManager()
+        
+        # First execution with idempotency key
+        exec_id1 = await manager.execute(
+            container_id="c_test123",
+            cmd=["echo", "test"],
+            idempotency_key="unique-key-123",
+        )
+        
+        # Second execution with same key should return same exec_id
+        exec_id2 = await manager.execute(
+            container_id="c_test123",
+            cmd=["echo", "test"],
+            idempotency_key="unique-key-123",
+        )
+        
+        assert exec_id1 == exec_id2
+
+
+@pytest.mark.asyncio
+async def test_cancel_exec(db_session):
+    """Test cancelling an execution."""
+    with patch("mcp_devbench.managers.exec_manager.get_docker_client") as mock_docker, \
+         patch("mcp_devbench.managers.exec_manager.get_db_manager") as mock_db_mgr:
+        
+        mock_session_cm = AsyncMock()
+        mock_session_cm.__aenter__ = AsyncMock(return_value=db_session)
+        mock_session_cm.__aexit__ = AsyncMock(return_value=None)
+        mock_db_mgr.return_value.get_session = MagicMock(return_value=mock_session_cm)
+        
+        # Create exec entry
+        exec_entry = Exec(
+            exec_id="e_test123",
+            container_id="c_test123",
+            cmd={"cmd": ["sleep", "100"], "cwd": "/workspace", "env": {}},
+            as_root=False,
+            started_at=datetime.utcnow(),
+        )
+        exec_repo = ExecRepository(db_session)
+        await exec_repo.create(exec_entry)
+        
+        manager = ExecManager()
+        
+        # Cancel the exec
+        await manager.cancel("e_test123")
+        
+        # Verify it's marked as cancelled
+        assert manager._cancelled.get("e_test123") is True
+
+
+@pytest.mark.asyncio
+async def test_cancel_nonexistent_exec(db_session):
+    """Test cancelling a nonexistent exec raises error."""
+    with patch("mcp_devbench.managers.exec_manager.get_docker_client") as mock_docker, \
+         patch("mcp_devbench.managers.exec_manager.get_db_manager") as mock_db_mgr:
+        
+        mock_session_cm = AsyncMock()
+        mock_session_cm.__aenter__ = AsyncMock(return_value=db_session)
+        mock_session_cm.__aexit__ = AsyncMock(return_value=None)
+        mock_db_mgr.return_value.get_session = MagicMock(return_value=mock_session_cm)
+        
+        manager = ExecManager()
+        
+        with pytest.raises(ExecNotFoundError) as exc_info:
+            await manager.cancel("e_nonexistent")
+        
+        assert exc_info.value.exec_id == "e_nonexistent"
+
+
+@pytest.mark.asyncio
+async def test_cleanup_idempotency_keys():
+    """Test cleaning up expired idempotency keys."""
+    with patch("mcp_devbench.managers.exec_manager.get_docker_client") as mock_docker:
+        manager = ExecManager()
+        
+        # Add keys with different ages
+        from datetime import timedelta
+        old_time = datetime.utcnow() - timedelta(hours=25)
+        recent_time = datetime.utcnow()
+        
+        manager._idempotency_keys["old_key"] = ("e_old", old_time)
+        manager._idempotency_keys["recent_key"] = ("e_recent", recent_time)
+        
+        # Cleanup keys older than 24 hours
+        count = await manager.cleanup_idempotency_keys(max_age_hours=24)
+        
+        assert count == 1
+        assert "old_key" not in manager._idempotency_keys
+        assert "recent_key" in manager._idempotency_keys

@@ -77,6 +77,12 @@ class ExecManager:
         
         # Track active execs
         self._active_execs: Dict[str, asyncio.Task] = {}
+        
+        # Idempotency key mapping (key -> exec_id) with 24hr TTL
+        self._idempotency_keys: Dict[str, tuple[str, datetime]] = {}
+        
+        # Cancelled exec IDs
+        self._cancelled: Dict[str, bool] = {}
 
     def _get_container_semaphore(self, container_id: str) -> asyncio.Semaphore:
         """
@@ -102,6 +108,7 @@ class ExecManager:
         env: Optional[Dict[str, str]] = None,
         as_root: bool = False,
         timeout_s: int = 600,
+        idempotency_key: Optional[str] = None,
     ) -> str:
         """
         Execute a command in a container asynchronously.
@@ -113,6 +120,7 @@ class ExecManager:
             env: Environment variables
             as_root: Run as root user (UID 0) instead of default user (UID 1000)
             timeout_s: Timeout in seconds
+            idempotency_key: Optional idempotency key to prevent duplicate execution
             
         Returns:
             Exec ID
@@ -122,8 +130,28 @@ class ExecManager:
             DockerAPIError: If Docker operations fail
             ExecTimeoutError: If execution times out
         """
+        # Check idempotency key
+        if idempotency_key:
+            if idempotency_key in self._idempotency_keys:
+                existing_exec_id, created_at = self._idempotency_keys[idempotency_key]
+                # Check if key is still valid (24hr TTL)
+                age = (datetime.utcnow() - created_at).total_seconds()
+                if age < 86400:  # 24 hours
+                    logger.info(
+                        "Returning existing exec for idempotency key",
+                        extra={"idempotency_key": idempotency_key, "exec_id": existing_exec_id},
+                    )
+                    return existing_exec_id
+                else:
+                    # Key expired, remove it
+                    del self._idempotency_keys[idempotency_key]
+        
         # Generate exec ID
         exec_id = f"e_{uuid4()}"
+        
+        # Store idempotency key if provided
+        if idempotency_key:
+            self._idempotency_keys[idempotency_key] = (exec_id, datetime.utcnow())
         
         # Verify container exists
         async with self.db_manager.get_session() as session:
@@ -138,7 +166,7 @@ class ExecManager:
             exec_entry = Exec(
                 exec_id=exec_id,
                 container_id=container_id,
-                cmd={"cmd": cmd, "cwd": cwd, "env": env or {}},
+                cmd={"cmd": cmd, "cwd": cwd, "env": env or {}, "idempotency_key": idempotency_key},
                 as_root=as_root,
                 started_at=now,
             )
@@ -382,3 +410,73 @@ class ExecManager:
             
             logger.info("Cleaned up old execs", extra={"count": count, "hours": hours})
             return count
+
+    async def cancel(self, exec_id: str) -> None:
+        """
+        Cancel a running execution.
+        
+        This will mark the exec as cancelled. Since docker-py exec_run is synchronous
+        and doesn't support direct cancellation, we mark it as cancelled and it will
+        be terminated when possible.
+        
+        Args:
+            exec_id: Exec ID to cancel
+            
+        Raises:
+            ExecNotFoundError: If exec not found
+        """
+        # Verify exec exists
+        async with self.db_manager.get_session() as session:
+            exec_repo = ExecRepository(session)
+            exec_entry = await exec_repo.get(exec_id)
+            
+            if not exec_entry:
+                raise ExecNotFoundError(exec_id)
+        
+        # Mark as cancelled
+        self._cancelled[exec_id] = True
+        
+        # Cancel the task if it's still running
+        if exec_id in self._active_execs:
+            task = self._active_execs[exec_id]
+            task.cancel()
+            
+            logger.info("Cancelled exec", extra={"exec_id": exec_id})
+            
+            # Add cancellation message to output stream
+            await self.output_streamer.add_output(
+                exec_id, "stderr", b"[CANCELLED]\n"
+            )
+        
+        # Complete with exit code -2 for cancelled
+        await self.output_streamer.complete(exec_id, -2, {"cancelled": True})
+
+    async def cleanup_idempotency_keys(self, max_age_hours: int = 24) -> int:
+        """
+        Clean up expired idempotency keys.
+        
+        Args:
+            max_age_hours: Maximum age in hours
+            
+        Returns:
+            Number of keys deleted
+        """
+        from datetime import timedelta
+        
+        cutoff = datetime.utcnow() - timedelta(hours=max_age_hours)
+        
+        keys_to_delete = []
+        for key, (exec_id, created_at) in self._idempotency_keys.items():
+            if created_at < cutoff:
+                keys_to_delete.append(key)
+        
+        for key in keys_to_delete:
+            del self._idempotency_keys[key]
+        
+        if keys_to_delete:
+            logger.info(
+                "Cleaned up expired idempotency keys",
+                extra={"count": len(keys_to_delete)},
+            )
+        
+        return len(keys_to_delete)
