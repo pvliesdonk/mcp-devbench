@@ -11,6 +11,7 @@ from mcp_devbench.config import get_settings
 from mcp_devbench.managers.container_manager import ContainerManager
 from mcp_devbench.managers.exec_manager import ExecManager
 from mcp_devbench.managers.filesystem_manager import FilesystemManager
+from mcp_devbench.managers.output_streamer import get_output_streamer
 from mcp_devbench.mcp_tools import (
     AttachInput,
     AttachOutput,
@@ -36,6 +37,7 @@ from mcp_devbench.mcp_tools import (
     SpawnInput,
     SpawnOutput,
 )
+from mcp_devbench.models.attachments import Attachment
 from mcp_devbench.models.database import close_db, get_db_manager, init_db
 from mcp_devbench.repositories.attachments import AttachmentRepository
 from mcp_devbench.repositories.containers import ContainerRepository
@@ -214,7 +216,6 @@ async def attach(input_data: AttachInput) -> AttachOutput:
 
         # Create attachment
         attachment_repo = AttachmentRepository(session)
-        from mcp_devbench.models.attachments import Attachment
 
         attachment = Attachment(
             container_id=container_id,
@@ -371,8 +372,6 @@ async def exec_poll(input_data: ExecPollInput) -> ExecPollOutput:
 
     try:
         # Get streamed output messages
-        from mcp_devbench.managers.output_streamer import get_output_streamer
-
         streamer = get_output_streamer()
 
         # Poll for messages after the specified sequence
@@ -595,21 +594,21 @@ async def fs_list(input_data: FileListInput) -> FileListOutput:
         # List directory
         entries = await manager.list(input_data.container_id, input_data.path)
 
-        # Convert FileInfo objects to dictionaries
-        entry_dicts = [
-            {
-                "path": e.path,
-                "size": e.size,
-                "is_dir": e.is_dir,
-                "permissions": e.permissions,
-                "mtime": e.mtime.isoformat(),
-                "etag": e.etag,
-                "mime_type": e.mime_type,
-            }
+        # Convert FileInfo objects to FileStatOutput objects
+        entry_outputs = [
+            FileStatOutput(
+                path=e.path,
+                size=e.size,
+                is_dir=e.is_dir,
+                permissions=e.permissions,
+                mtime=e.mtime,
+                etag=e.etag,
+                mime_type=e.mime_type,
+            )
             for e in entries
         ]
 
-        return FileListOutput(path=input_data.path, entries=entry_dicts)
+        return FileListOutput(path=input_data.path, entries=entry_outputs)
 
     except PathSecurityError as e:
         logger.warning("Path security violation", extra={"error": str(e)})

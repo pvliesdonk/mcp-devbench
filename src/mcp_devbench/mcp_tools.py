@@ -170,7 +170,7 @@ class FileListOutput(BaseModel):
     """Output model for file list resource."""
 
     path: str = Field(..., description="Directory path")
-    entries: List[Dict[str, Any]] = Field(..., description="List of file/directory entries")
+    entries: List[FileStatOutput] = Field(..., description="List of file/directory entries")
 
 
 # Streaming Models for Feature 4.3

@@ -251,61 +251,45 @@ async def test_exec_poll_tool():
     """Test exec_poll tool endpoint."""
     from mcp_devbench import server
 
-    with patch("mcp_devbench.server.ExecManager") as mock_manager_class:
-        mock_manager = AsyncMock()
-        mock_manager_class.return_value = mock_manager
-
-        # Mock exec result
-        from mcp_devbench.managers.exec_manager import ExecResult
-
-        mock_result = ExecResult(
-            exec_id="e_exec123",
-            exit_code=0,
-            output="test output",
-            is_complete=True,
-            usage={"wall_ms": 100},
-        )
-        mock_manager.get_exec_result = AsyncMock(return_value=mock_result)
-
-        with patch("mcp_devbench.managers.output_streamer.get_output_streamer") as mock_streamer_fn:
-            mock_streamer = AsyncMock()
-            mock_streamer_fn.return_value = mock_streamer
-            # Mock the poll method which returns (messages_list, is_complete)
-            mock_streamer.poll = AsyncMock(
-                return_value=(
-                    [
-                        {
-                            "seq": 1,
-                            "stream": "stdout",
-                            "data": "test output",
-                            "ts": "2025-10-31T12:00:00",
-                        },
-                        {
-                            "seq": 2,
-                            "exit_code": 0,
-                            "usage": {"wall_ms": 100},
-                            "ts": "2025-10-31T12:00:01",
-                            "complete": True,
-                        },
-                    ],
-                    True,  # is_complete
-                )
+    with patch("mcp_devbench.server.get_output_streamer") as mock_streamer_fn:
+        mock_streamer = AsyncMock()
+        mock_streamer_fn.return_value = mock_streamer
+        # Mock the poll method which returns (messages_list, is_complete)
+        mock_streamer.poll = AsyncMock(
+            return_value=(
+                [
+                    {
+                        "seq": 1,
+                        "stream": "stdout",
+                        "data": "test output",
+                        "ts": "2025-10-31T12:00:00",
+                    },
+                    {
+                        "seq": 2,
+                        "exit_code": 0,
+                        "usage": {"wall_ms": 100},
+                        "ts": "2025-10-31T12:00:01",
+                        "complete": True,
+                    },
+                ],
+                True,  # is_complete
             )
+        )
 
-            # Test exec_poll
-            input_data = ExecPollInput(exec_id="e_exec123", after_seq=0)
+        # Test exec_poll
+        input_data = ExecPollInput(exec_id="e_exec123", after_seq=0)
 
-            result = await server.exec_poll.fn(input_data)
+        result = await server.exec_poll.fn(input_data)
 
-            assert result.complete is True
-            assert len(result.messages) == 2  # 1 output message + 1 completion message
-            assert result.messages[0].stream == "stdout"
-            assert result.messages[0].data == "test output"
-            assert result.messages[1].exit_code == 0
-            assert result.messages[1].complete is True
+        assert result.complete is True
+        assert len(result.messages) == 2  # 1 output message + 1 completion message
+        assert result.messages[0].stream == "stdout"
+        assert result.messages[0].data == "test output"
+        assert result.messages[1].exit_code == 0
+        assert result.messages[1].complete is True
 
-            # Verify poll was called correctly
-            mock_streamer.poll.assert_called_once_with("e_exec123", after_seq=0)
+        # Verify poll was called correctly
+        mock_streamer.poll.assert_called_once_with("e_exec123", after_seq=0)
 
 
 @pytest.mark.asyncio
@@ -482,7 +466,7 @@ async def test_fs_list_tool():
 
         assert result.path == "/workspace"
         assert len(result.entries) == 2
-        assert result.entries[0]["path"] == "/workspace/file1.txt"
-        assert result.entries[0]["is_dir"] is False
-        assert result.entries[1]["path"] == "/workspace/dir1"
-        assert result.entries[1]["is_dir"] is True
+        assert result.entries[0].path == "/workspace/file1.txt"
+        assert result.entries[0].is_dir is False
+        assert result.entries[1].path == "/workspace/dir1"
+        assert result.entries[1].is_dir is True
