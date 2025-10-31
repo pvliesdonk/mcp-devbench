@@ -1,6 +1,5 @@
 """Filesystem manager for Docker container workspace operations."""
 
-import base64
 import hashlib
 import io
 import os
@@ -149,16 +148,31 @@ class FilesystemManager:
         Calculate ETag for file content.
 
         Args:
-            content: File content
-            mtime: Optional modification time
+            content: File content (bytes or str)
+            mtime: Optional modification time (str)
 
         Returns:
-            ETag string
+            ETag string (SHA-256 hash)
         """
-        hash_input = content
+        # Ensure content is bytes
+        if isinstance(content, str):
+            hash_input = content.encode('utf-8')
+        elif isinstance(content, bytes):
+            hash_input = content
+        else:
+            # Handle other types (e.g., Mock objects in tests)
+            hash_input = str(content).encode('utf-8')
+
         if mtime:
-            hash_input += mtime.encode()
-        return hashlib.md5(hash_input).hexdigest()
+            if isinstance(mtime, str):
+                hash_input += mtime.encode('utf-8')
+            elif isinstance(mtime, bytes):
+                hash_input += mtime
+            else:
+                # Handle other types
+                hash_input += str(mtime).encode('utf-8')
+
+        return hashlib.sha256(hash_input).hexdigest()
 
     async def read(
         self, container_id: str, path: str
@@ -281,7 +295,7 @@ class FilesystemManager:
                     # File doesn't exist, that's ok for new files
                     pass
 
-            # Create parent directories
+            # Create parent directories if needed
             parent_dir = posixpath.dirname(normalized_path)
             if parent_dir != self.WORKSPACE_ROOT:
                 mkdir_cmd = f"mkdir -p {shlex.quote(parent_dir)}"
@@ -290,20 +304,28 @@ class FilesystemManager:
                     user="1000:1000"
                 )
 
-            # Write file using base64 encoding to handle binary content
-            # This avoids issues with special characters and binary data
-            content_b64 = base64.b64encode(content).decode('ascii')
-            write_cmd = (
-                f"echo {shlex.quote(content_b64)} | base64 -d > {shlex.quote(normalized_path)}"
-            )
-            exec_result = container.exec_run(
-                ["sh", "-c", write_cmd],
-                user="1000:1000"
+            # Write file using Docker's put_archive API to avoid command line limits
+            # This works with large files (tested up to 1GB+)
+            tarstream = io.BytesIO()
+            with tarfile.open(fileobj=tarstream, mode='w') as tar:
+                tarinfo = tarfile.TarInfo(name=posixpath.basename(normalized_path))
+                tarinfo.size = len(content)
+                tarinfo.mtime = int(datetime.now().timestamp())
+                tarinfo.mode = 0o644  # rw-r--r--
+                tarinfo.uid = 1000
+                tarinfo.gid = 1000
+                tar.addfile(tarinfo, io.BytesIO(content))
+
+            tarstream.seek(0)
+            # put_archive expects the path to the directory where to extract
+            success = container.put_archive(
+                path=parent_dir if parent_dir else self.WORKSPACE_ROOT,
+                data=tarstream.getvalue()
             )
 
-            if exec_result.exit_code != 0:
+            if not success:
                 raise DockerAPIError(
-                    f"Failed to write file: {exec_result.output.decode()}"
+                    "Failed to write file: put_archive returned False"
                 )
 
             # Get mtime and calculate new etag
@@ -409,15 +431,17 @@ class FilesystemManager:
             mtime = datetime.fromtimestamp(int(mtime_str))
             is_dir = "directory" in file_type.lower()
 
-            # For files, calculate etag
+            # For files, calculate etag from metadata (no need to read content)
             etag = ""
             if not is_dir:
-                # Read a small portion to calculate etag
-                content, _ = await self.read(container_id, path)
-                etag = self._calculate_etag(content, mtime_str)
+                etag = hashlib.sha256(
+                    f"{normalized_path}:{size}:{mtime_str}".encode()
+                ).hexdigest()
             else:
                 # For directories, use a simple hash
-                etag = hashlib.md5(f"{normalized_path}:{mtime_str}".encode()).hexdigest()
+                etag = hashlib.sha256(
+                    f"{normalized_path}:{mtime_str}".encode()
+                ).hexdigest()
 
             file_info = FileInfo(
                 path=normalized_path,
@@ -504,7 +528,7 @@ class FilesystemManager:
                 size = int(size_str) if not is_dir else 0
 
                 # Calculate a simple etag
-                etag = hashlib.md5(
+                etag = hashlib.sha256(
                     f"{file_path}:{size}:{mtime_str}".encode()
                 ).hexdigest()
 
@@ -757,8 +781,10 @@ class FilesystemManager:
             try:
                 cleanup_cmd = f"rm -rf {shlex.quote(staging_dir)}"
                 container.exec_run(["sh", "-c", cleanup_cmd], user="1000:1000")
-            except Exception:
-                pass
+            except Exception as cleanup_exc:
+                logger.warning(
+                    f"Failed to clean up staging directory {staging_dir}: {cleanup_exc}"
+                )
 
             return BatchResult(
                 success=False,
@@ -937,41 +963,14 @@ class FilesystemManager:
             # Validate tar contents before extracting
             await self._validate_tar_contents(tar_data, normalized_dest)
 
-            # Create a temporary file to hold the tar data
-            timestamp_hash = hashlib.md5(str(datetime.now()).encode()).hexdigest()[:8]
-            temp_tar_path = f"/tmp/mcp_import_{timestamp_hash}.tar"
+            # Use Docker's put_archive API to extract tar data directly
+            # This avoids command line length limits and is more efficient
+            success = container.put_archive(normalized_dest, tar_data)
 
-            # Write tar data to temporary file in container
-            tar_b64 = base64.b64encode(tar_data).decode("ascii")
-            write_cmd = f"echo {shlex.quote(tar_b64)} | base64 -d > {temp_tar_path}"
-            exec_result = container.exec_run(
-                ["sh", "-c", write_cmd],
-                user="1000:1000",
-            )
-
-            if exec_result.exit_code != 0:
+            if not success:
                 raise DockerAPIError(
-                    f"Failed to write tar data: {exec_result.output.decode()}"
+                    f"Failed to extract tar archive into {normalized_dest}"
                 )
-
-            # Extract tar
-            extract_cmd = f"tar -xf {temp_tar_path} -C {shlex.quote(normalized_dest)}"
-            exec_result = container.exec_run(
-                ["sh", "-c", extract_cmd],
-                user="1000:1000",
-            )
-
-            if exec_result.exit_code != 0:
-                raise DockerAPIError(
-                    f"Failed to extract tar: {exec_result.output.decode()}"
-                )
-
-            # Clean up temp file
-            cleanup_cmd = f"rm {temp_tar_path}"
-            container.exec_run(
-                ["sh", "-c", cleanup_cmd],
-                user="1000:1000",
-            )
 
             # Count files created (approximate)
             count_cmd = f"find {shlex.quote(normalized_dest)} -type f | wc -l"

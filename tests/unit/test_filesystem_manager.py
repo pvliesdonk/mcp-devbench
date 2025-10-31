@@ -115,7 +115,7 @@ class TestReadOperation:
         assert file_info.is_dir is False
         assert file_info.permissions == "644"
         assert isinstance(file_info.etag, str)
-        assert len(file_info.etag) == 32  # MD5 hash
+        assert len(file_info.etag) == 64  # SHA-256 hash
 
     async def test_read_nonexistent_file(
         self, filesystem_manager, mock_docker_client, mock_container
@@ -169,7 +169,7 @@ class TestWriteOperation:
 
         # Verify
         assert isinstance(etag, str)
-        assert len(etag) == 32  # MD5 hash
+        assert len(etag) == 64  # SHA-256 hash
 
     async def test_write_with_parent_directory_creation(
         self, filesystem_manager, mock_docker_client, mock_container
@@ -540,12 +540,7 @@ class TestBatchOperations:
 
         def exec_side_effect(*args, **kwargs):
             cmd = args[0]
-            if "base64 -d" in str(cmd):
-                write_count[0] += 1
-                result = MagicMock()
-                result.exit_code = 0
-                return result
-            elif "stat -c '%s|%a|%Y'" in str(cmd):
+            if "stat -c '%s|%a|%Y'" in str(cmd):
                 # For checking if file exists before write (for rollback)
                 result = MagicMock()
                 result.exit_code = 1  # File doesn't exist yet
@@ -567,6 +562,13 @@ class TestBatchOperations:
             return MagicMock(exit_code=0)
 
         mock_container.exec_run.side_effect = exec_side_effect
+
+        # Mock put_archive for write operations
+        def put_archive_side_effect(*args, **kwargs):
+            write_count[0] += 1
+            return True
+
+        mock_container.put_archive = MagicMock(side_effect=put_archive_side_effect)
 
         # Execute batch
         operations = [
@@ -819,6 +821,7 @@ class TestBatchOperations:
         mock_docker_client.containers.get.return_value = mock_container
 
         call_count = [0]
+        put_archive_count = [0]
 
         def exec_side_effect(*args, **kwargs):
             cmd = args[0]
@@ -829,11 +832,6 @@ class TestBatchOperations:
                 # File doesn't exist yet
                 result = MagicMock()
                 result.exit_code = 1
-                return result
-            elif "base64 -d" in str(cmd) and call_count[0] <= 5:
-                # First write succeeds
-                result = MagicMock()
-                result.exit_code = 0
                 return result
             elif "stat -c '%Y'" in str(cmd) and call_count[0] <= 6:
                 result = MagicMock()
@@ -846,12 +844,6 @@ class TestBatchOperations:
                 # File doesn't exist yet
                 result = MagicMock()
                 result.exit_code = 1
-                return result
-            elif "base64 -d" in str(cmd):
-                # Second write fails
-                result = MagicMock()
-                result.exit_code = 1
-                result.output = b"Error"
                 return result
 
             elif "mkdir" in str(cmd):
@@ -868,6 +860,16 @@ class TestBatchOperations:
                 return result
 
         mock_container.exec_run.side_effect = exec_side_effect
+
+        # Mock put_archive to fail on second call
+        def put_archive_side_effect(*args, **kwargs):
+            put_archive_count[0] += 1
+            if put_archive_count[0] == 1:
+                return True  # First write succeeds
+            else:
+                return False  # Second write fails
+
+        mock_container.put_archive = MagicMock(side_effect=put_archive_side_effect)
 
         # Execute batch where second operation fails
         operations = [

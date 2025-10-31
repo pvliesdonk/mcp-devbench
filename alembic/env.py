@@ -14,10 +14,9 @@ from alembic import context
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+# Import models for Alembic autogenerate - do not remove even if marked unused
 from mcp_devbench.models.attachments import Attachment  # noqa: F401
 from mcp_devbench.models.base import Base
-
-# Import models for Alembic autogenerate - do not remove even if marked unused
 from mcp_devbench.models.containers import Container  # noqa: F401
 from mcp_devbench.models.execs import Exec  # noqa: F401
 
