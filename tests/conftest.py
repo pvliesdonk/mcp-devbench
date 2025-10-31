@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from mcp_devbench.models.base import Base
+from mcp_devbench.models.database import get_db_manager, init_db
+from mcp_devbench.utils.docker_client import get_docker_client
 
 
 @pytest.fixture(scope="session")
@@ -43,3 +45,22 @@ async def db_session(test_db_engine) -> AsyncGenerator[AsyncSession, None]:
     async with async_session() as session:
         yield session
         await session.rollback()
+
+
+@pytest.fixture(scope="session", autouse=True)
+async def setup_integration_env():
+    """Setup environment for integration tests."""
+    # Initialize database for integration tests
+    await init_db()
+
+    # Pull alpine image for tests
+    docker_client = get_docker_client()
+    try:
+        docker_client.images.pull("alpine:latest")
+    except Exception:
+        pass  # Image might already exist
+
+    yield
+
+    # Cleanup
+    # (Database cleanup happens automatically for in-memory DB)
