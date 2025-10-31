@@ -6,7 +6,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mcp_devbench.managers.filesystem_manager import FileInfo, FilesystemManager
+from mcp_devbench.managers.filesystem_manager import (
+    BatchOperation,
+    FileInfo,
+    FilesystemManager,
+    OperationType,
+)
 from mcp_devbench.utils.exceptions import (
     ContainerNotFoundError,
     FileConflictError,
@@ -473,3 +478,432 @@ class TestContainerNotFound:
 
         with pytest.raises(ContainerNotFoundError):
             await filesystem_manager.list("c_nonexistent", "/workspace")
+
+
+@pytest.mark.asyncio
+class TestBatchOperations:
+    """Tests for batch operations."""
+
+    async def test_batch_read_operations(
+        self, filesystem_manager, mock_docker_client, mock_container
+    ):
+        """Test batch read operations."""
+        mock_docker_client.containers.get.return_value = mock_container
+
+        # Setup mocks for read operations
+        def exec_side_effect(*args, **kwargs):
+            cmd = args[0]
+            if "stat" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                result.output = b"13|644|1609459200"
+                return result
+            elif "cat" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                result.output = b"test content"
+                return result
+            elif "test -d" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                result.output = b"no"
+                return result
+            elif "mkdir" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                return result
+            elif "rm -rf" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                return result
+            return MagicMock(exit_code=0)
+
+        mock_container.exec_run.side_effect = exec_side_effect
+
+        # Execute batch
+        operations = [
+            BatchOperation(op_type=OperationType.READ, path="file1.txt"),
+            BatchOperation(op_type=OperationType.READ, path="file2.txt"),
+        ]
+        result = await filesystem_manager.batch("c_test123", operations)
+
+        # Verify
+        assert result.success is True
+        assert len(result.results) == 2
+        assert all(r.success for r in result.results)
+        assert result.results[0].data["content"] == b"test content"
+
+    async def test_batch_write_operations(
+        self, filesystem_manager, mock_docker_client, mock_container
+    ):
+        """Test batch write operations."""
+        mock_docker_client.containers.get.return_value = mock_container
+
+        write_count = [0]
+
+        def exec_side_effect(*args, **kwargs):
+            cmd = args[0]
+            if "base64 -d" in str(cmd):
+                write_count[0] += 1
+                result = MagicMock()
+                result.exit_code = 0
+                return result
+            elif "stat -c '%s|%a|%Y'" in str(cmd):
+                # For checking if file exists before write (for rollback)
+                result = MagicMock()
+                result.exit_code = 1  # File doesn't exist yet
+                return result
+            elif "stat -c '%Y'" in str(cmd):
+                # For getting mtime after write
+                result = MagicMock()
+                result.exit_code = 0
+                result.output = b"1609459200"
+                return result
+            elif "mkdir" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                return result
+            elif "rm -rf" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                return result
+            return MagicMock(exit_code=0)
+
+        mock_container.exec_run.side_effect = exec_side_effect
+
+        # Execute batch
+        operations = [
+            BatchOperation(
+                op_type=OperationType.WRITE, path="file1.txt", content=b"content1"
+            ),
+            BatchOperation(
+                op_type=OperationType.WRITE, path="file2.txt", content=b"content2"
+            ),
+        ]
+        result = await filesystem_manager.batch("c_test123", operations)
+
+        # Verify
+        assert result.success is True
+        assert len(result.results) == 2
+        assert all(r.success for r in result.results)
+        assert write_count[0] == 2
+
+    async def test_batch_mixed_operations(
+        self, filesystem_manager, mock_docker_client, mock_container
+    ):
+        """Test batch with mixed operations."""
+        mock_docker_client.containers.get.return_value = mock_container
+
+        def exec_side_effect(*args, **kwargs):
+            cmd = args[0]
+            if "stat -c '%s|%a|%Y'" in str(cmd) and "file1.txt" in str(cmd):
+                # Read operation for file1.txt
+                result = MagicMock()
+                result.exit_code = 0
+                result.output = b"13|644|1609459200"
+                return result
+            elif "cat" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                result.output = b"test content"
+                return result
+            elif "test -d" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                result.output = b"no"
+                return result
+            elif "base64 -d" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                return result
+            elif "stat -c '%s|%a|%Y'" in str(cmd) and "file2.txt" in str(cmd):
+                # Check before write - file doesn't exist
+                result = MagicMock()
+                result.exit_code = 1
+                return result
+            elif "stat -c '%s|%a|%Y'" in str(cmd) and "file3.txt" in str(cmd):
+                # Check before delete - file doesn't exist
+                result = MagicMock()
+                result.exit_code = 1
+                return result
+            elif "stat -c '%Y'" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                result.output = b"1609459200"
+                return result
+            elif "rm -rf" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                return result
+            elif "mkdir" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                return result
+            return MagicMock(exit_code=0)
+
+        mock_container.exec_run.side_effect = exec_side_effect
+
+        # Execute batch
+        operations = [
+            BatchOperation(op_type=OperationType.READ, path="file1.txt"),
+            BatchOperation(
+                op_type=OperationType.WRITE, path="file2.txt", content=b"new content"
+            ),
+            BatchOperation(op_type=OperationType.DELETE, path="file3.txt"),
+        ]
+        result = await filesystem_manager.batch("c_test123", operations)
+
+        # Verify
+        assert result.success is True
+        assert len(result.results) == 3
+        assert all(r.success for r in result.results)
+
+    async def test_batch_copy_operation(
+        self, filesystem_manager, mock_docker_client, mock_container
+    ):
+        """Test batch copy operation."""
+        mock_docker_client.containers.get.return_value = mock_container
+
+        def exec_side_effect(*args, **kwargs):
+            cmd = args[0]
+            if "stat" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                result.output = b"13|644|1609459200"
+                return result
+            elif "cat" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                result.output = b"source content"
+                return result
+            elif "test -d" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                result.output = b"no"
+                return result
+            elif "base64 -d" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                return result
+            elif "mkdir" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                return result
+            elif "rm -rf" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                return result
+            return MagicMock(exit_code=0)
+
+        mock_container.exec_run.side_effect = exec_side_effect
+
+        # Execute batch
+        operations = [
+            BatchOperation(
+                op_type=OperationType.COPY,
+                path="source.txt",
+                dest_path="dest.txt",
+            )
+        ]
+        result = await filesystem_manager.batch("c_test123", operations)
+
+        # Verify
+        assert result.success is True
+        assert len(result.results) == 1
+        assert result.results[0].success is True
+        assert result.results[0].data["dest_path"] == "dest.txt"
+
+    async def test_batch_move_operation(
+        self, filesystem_manager, mock_docker_client, mock_container
+    ):
+        """Test batch move operation."""
+        mock_docker_client.containers.get.return_value = mock_container
+
+        def exec_side_effect(*args, **kwargs):
+            cmd = args[0]
+            if "stat" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                result.output = b"13|644|1609459200"
+                return result
+            elif "cat" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                result.output = b"source content"
+                return result
+            elif "test -d" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                result.output = b"no"
+                return result
+            elif "base64 -d" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                return result
+            elif "rm -rf" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                return result
+            elif "mkdir" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                return result
+            return MagicMock(exit_code=0)
+
+        mock_container.exec_run.side_effect = exec_side_effect
+
+        # Execute batch
+        operations = [
+            BatchOperation(
+                op_type=OperationType.MOVE,
+                path="source.txt",
+                dest_path="dest.txt",
+            )
+        ]
+        result = await filesystem_manager.batch("c_test123", operations)
+
+        # Verify
+        assert result.success is True
+        assert len(result.results) == 1
+        assert result.results[0].success is True
+
+    async def test_batch_with_etag_conflict(
+        self, filesystem_manager, mock_docker_client, mock_container
+    ):
+        """Test batch fails fast on ETag conflict."""
+        mock_docker_client.containers.get.return_value = mock_container
+
+        # Mock read to return existing file with different etag
+        def exec_side_effect(*args, **kwargs):
+            cmd = args[0]
+            if "stat" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                result.output = b"5|644|1609459200"
+                return result
+            elif "cat" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                result.output = b"hello"
+                return result
+            elif "test -d" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                result.output = b"no"
+                return result
+            elif "mkdir" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                return result
+            return MagicMock(exit_code=0)
+
+        mock_container.exec_run.side_effect = exec_side_effect
+
+        # Execute batch with wrong etag
+        operations = [
+            BatchOperation(
+                op_type=OperationType.WRITE,
+                path="file.txt",
+                content=b"new content",
+                if_match_etag="wrong_etag",
+            )
+        ]
+        result = await filesystem_manager.batch("c_test123", operations)
+
+        # Verify it failed before executing
+        assert result.success is False
+        assert len(result.results) == 0
+        assert "ETag mismatch" in result.error
+
+    async def test_batch_rollback_on_failure(
+        self, filesystem_manager, mock_docker_client, mock_container
+    ):
+        """Test batch rolls back on failure."""
+        mock_docker_client.containers.get.return_value = mock_container
+
+        call_count = [0]
+
+        def exec_side_effect(*args, **kwargs):
+            cmd = args[0]
+            call_count[0] += 1
+
+            # First operation: write file1.txt
+            if "stat -c '%s|%a|%Y'" in str(cmd) and "file1.txt" in str(cmd):
+                # File doesn't exist yet
+                result = MagicMock()
+                result.exit_code = 1
+                return result
+            elif "base64 -d" in str(cmd) and call_count[0] <= 5:
+                # First write succeeds
+                result = MagicMock()
+                result.exit_code = 0
+                return result
+            elif "stat -c '%Y'" in str(cmd) and call_count[0] <= 6:
+                result = MagicMock()
+                result.exit_code = 0
+                result.output = b"1609459200"
+                return result
+
+            # Second operation: write file2.txt (this will fail)
+            elif "stat -c '%s|%a|%Y'" in str(cmd) and "file2.txt" in str(cmd):
+                # File doesn't exist yet
+                result = MagicMock()
+                result.exit_code = 1
+                return result
+            elif "base64 -d" in str(cmd):
+                # Second write fails
+                result = MagicMock()
+                result.exit_code = 1
+                result.output = b"Error"
+                return result
+
+            elif "mkdir" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                return result
+            elif "rm -rf" in str(cmd):
+                result = MagicMock()
+                result.exit_code = 0
+                return result
+            else:
+                result = MagicMock()
+                result.exit_code = 0
+                return result
+
+        mock_container.exec_run.side_effect = exec_side_effect
+
+        # Execute batch where second operation fails
+        operations = [
+            BatchOperation(
+                op_type=OperationType.WRITE, path="file1.txt", content=b"content1"
+            ),
+            BatchOperation(
+                op_type=OperationType.WRITE, path="file2.txt", content=b"content2"
+            ),
+        ]
+        result = await filesystem_manager.batch("c_test123", operations)
+
+        # Verify rollback was performed
+        assert result.success is False
+        assert result.rollback_performed is True
+        assert len(result.results) == 2  # First succeeded, second failed
+
+    async def test_batch_with_invalid_path(
+        self, filesystem_manager, mock_docker_client, mock_container
+    ):
+        """Test batch fails on invalid path."""
+        mock_docker_client.containers.get.return_value = mock_container
+
+        # Execute batch with invalid path
+        operations = [
+            BatchOperation(
+                op_type=OperationType.WRITE,
+                path="/etc/passwd",  # Outside workspace
+                content=b"bad",
+            )
+        ]
+
+        result = await filesystem_manager.batch("c_test123", operations)
+
+        # Verify it failed
+        assert result.success is False

@@ -8,7 +8,8 @@ import posixpath
 import shlex
 from dataclasses import dataclass
 from datetime import datetime
-from typing import BinaryIO, List, Optional
+from enum import Enum
+from typing import Any, BinaryIO, List, Optional, Union
 
 from docker import DockerClient
 from docker.errors import APIError, NotFound
@@ -37,6 +38,48 @@ class FileInfo:
     mtime: datetime
     etag: str
     mime_type: Optional[str] = None
+
+
+class OperationType(Enum):
+    """Types of batch operations."""
+
+    READ = "read"
+    WRITE = "write"
+    DELETE = "delete"
+    MOVE = "move"
+    COPY = "copy"
+
+
+@dataclass
+class BatchOperation:
+    """A single operation in a batch."""
+
+    op_type: OperationType
+    path: str
+    content: Optional[bytes] = None
+    dest_path: Optional[str] = None  # For move/copy
+    if_match_etag: Optional[str] = None
+
+
+@dataclass
+class OperationResult:
+    """Result of a batch operation."""
+
+    success: bool
+    op_type: OperationType
+    path: str
+    data: Optional[Any] = None  # Content for read, etag for write, etc.
+    error: Optional[str] = None
+
+
+@dataclass
+class BatchResult:
+    """Result of a batch operation."""
+
+    success: bool
+    results: List[OperationResult]
+    rollback_performed: bool = False
+    error: Optional[str] = None
 
 
 class FilesystemManager:
@@ -514,3 +557,235 @@ class FilesystemManager:
             ".gz": "application/gzip",
         }
         return mime_types.get(ext, "application/octet-stream")
+
+    async def batch(
+        self, container_id: str, operations: List[BatchOperation]
+    ) -> BatchResult:
+        """
+        Execute a batch of filesystem operations atomically.
+
+        Operations are executed in order. If any operation fails, a rollback
+        is attempted (best effort) to restore the original state.
+
+        Args:
+            container_id: Container ID
+            operations: List of operations to execute
+
+        Returns:
+            BatchResult with success status and results for each operation
+
+        Raises:
+            ContainerNotFoundError: If container not found
+            PathSecurityError: If any path is invalid
+            DockerAPIError: If Docker operations fail
+        """
+        container = self._get_container(container_id)
+        results: List[OperationResult] = []
+        staging_dir = f"/tmp/mcp_batch_{hashlib.md5(str(datetime.now()).encode()).hexdigest()[:8]}"
+        rollback_info: List[tuple[str, Optional[bytes]]] = []  # (path, original_content)
+
+        try:
+            # Validate all paths first
+            for op in operations:
+                self._validate_path(op.path)
+                if op.dest_path:
+                    self._validate_path(op.dest_path)
+
+            # Check all ETags before starting
+            for op in operations:
+                if op.if_match_etag and op.op_type in [
+                    OperationType.WRITE,
+                    OperationType.DELETE,
+                ]:
+                    try:
+                        _, existing_info = await self.read(container_id, op.path)
+                        if existing_info.etag != op.if_match_etag:
+                            return BatchResult(
+                                success=False,
+                                results=[],
+                                error=f"ETag mismatch for {op.path}: "
+                                f"expected {op.if_match_etag}, "
+                                f"got {existing_info.etag}",
+                            )
+                    except FileNotFoundError:
+                        # File doesn't exist yet, ok for write operations
+                        if op.op_type != OperationType.WRITE:
+                            return BatchResult(
+                                success=False,
+                                results=[],
+                                error=f"File not found for operation: {op.path}",
+                            )
+
+            # Create staging directory
+            mkdir_cmd = f"mkdir -p {shlex.quote(staging_dir)}"
+            container.exec_run(["sh", "-c", mkdir_cmd], user="1000:1000")
+
+            # Execute operations
+            for op in operations:
+                try:
+                    if op.op_type == OperationType.READ:
+                        content, file_info = await self.read(container_id, op.path)
+                        results.append(
+                            OperationResult(
+                                success=True,
+                                op_type=op.op_type,
+                                path=op.path,
+                                data={"content": content, "info": file_info},
+                            )
+                        )
+
+                    elif op.op_type == OperationType.WRITE:
+                        # Save original content for rollback
+                        try:
+                            original_content, _ = await self.read(container_id, op.path)
+                            rollback_info.append((op.path, original_content))
+                        except FileNotFoundError:
+                            rollback_info.append((op.path, None))
+
+                        etag = await self.write(
+                            container_id, op.path, op.content, op.if_match_etag
+                        )
+                        results.append(
+                            OperationResult(
+                                success=True,
+                                op_type=op.op_type,
+                                path=op.path,
+                                data={"etag": etag},
+                            )
+                        )
+
+                    elif op.op_type == OperationType.DELETE:
+                        # Save original for rollback
+                        try:
+                            original_content, _ = await self.read(container_id, op.path)
+                            rollback_info.append((op.path, original_content))
+                        except FileNotFoundError:
+                            rollback_info.append((op.path, None))
+
+                        await self.delete(container_id, op.path)
+                        results.append(
+                            OperationResult(
+                                success=True, op_type=op.op_type, path=op.path
+                            )
+                        )
+
+                    elif op.op_type == OperationType.MOVE:
+                        if not op.dest_path:
+                            raise ValueError("dest_path required for MOVE operation")
+
+                        # Read source
+                        content, _ = await self.read(container_id, op.path)
+                        rollback_info.append((op.path, content))
+                        rollback_info.append((op.dest_path, None))
+
+                        # Write to destination
+                        await self.write(container_id, op.dest_path, content)
+                        # Delete source
+                        await self.delete(container_id, op.path)
+
+                        results.append(
+                            OperationResult(
+                                success=True,
+                                op_type=op.op_type,
+                                path=op.path,
+                                data={"dest_path": op.dest_path},
+                            )
+                        )
+
+                    elif op.op_type == OperationType.COPY:
+                        if not op.dest_path:
+                            raise ValueError("dest_path required for COPY operation")
+
+                        # Read source
+                        content, _ = await self.read(container_id, op.path)
+                        rollback_info.append((op.dest_path, None))
+
+                        # Write to destination
+                        await self.write(container_id, op.dest_path, content)
+
+                        results.append(
+                            OperationResult(
+                                success=True,
+                                op_type=op.op_type,
+                                path=op.path,
+                                data={"dest_path": op.dest_path},
+                            )
+                        )
+
+                except Exception as e:
+                    # Operation failed, perform rollback
+                    logger.error(
+                        f"Batch operation failed at {op.path}: {e}, "
+                        f"performing rollback"
+                    )
+
+                    # Best-effort rollback
+                    await self._rollback_operations(
+                        container_id, rollback_info
+                    )
+
+                    results.append(
+                        OperationResult(
+                            success=False,
+                            op_type=op.op_type,
+                            path=op.path,
+                            error=str(e),
+                        )
+                    )
+
+                    return BatchResult(
+                        success=False,
+                        results=results,
+                        rollback_performed=True,
+                        error=str(e),
+                    )
+
+            # Clean up staging directory
+            cleanup_cmd = f"rm -rf {shlex.quote(staging_dir)}"
+            container.exec_run(["sh", "-c", cleanup_cmd], user="1000:1000")
+
+            logger.info(
+                f"Completed batch of {len(operations)} operations "
+                f"in container {container_id}"
+            )
+            return BatchResult(success=True, results=results)
+
+        except Exception as e:
+            logger.error(f"Batch operation failed: {e}")
+            # Clean up staging directory on error
+            try:
+                cleanup_cmd = f"rm -rf {shlex.quote(staging_dir)}"
+                container.exec_run(["sh", "-c", cleanup_cmd], user="1000:1000")
+            except Exception:
+                pass
+
+            return BatchResult(
+                success=False,
+                results=results,
+                error=str(e),
+            )
+
+    async def _rollback_operations(
+        self, container_id: str, rollback_info: List[tuple[str, Optional[bytes]]]
+    ) -> None:
+        """
+        Rollback operations (best effort).
+
+        Args:
+            container_id: Container ID
+            rollback_info: List of (path, original_content) tuples
+        """
+        for path, original_content in reversed(rollback_info):
+            try:
+                if original_content is None:
+                    # File didn't exist, delete it
+                    try:
+                        await self.delete(container_id, path)
+                    except FileNotFoundError:
+                        pass  # Already doesn't exist
+                else:
+                    # Restore original content
+                    await self.write(container_id, path, original_content)
+            except Exception as e:
+                logger.warning(f"Failed to rollback {path}: {e}")
+                # Continue with other rollbacks
