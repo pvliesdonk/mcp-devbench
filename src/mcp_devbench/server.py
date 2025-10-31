@@ -193,6 +193,9 @@ async def spawn(input_data: SpawnInput) -> SpawnOutput:
         },
     )
 
+    audit_logger = get_audit_logger()
+    metrics_collector = get_metrics_collector()
+
     try:
         manager = ContainerManager()
 
@@ -206,6 +209,20 @@ async def spawn(input_data: SpawnInput) -> SpawnOutput:
 
         # Start container
         await manager.start_container(container.id)
+
+        # Log audit event
+        audit_logger.log_event(
+            AuditEventType.CONTAINER_SPAWN,
+            container_id=container.id,
+            details={
+                "image": input_data.image,
+                "persistent": input_data.persistent,
+                "alias": input_data.alias,
+            },
+        )
+
+        # Record metrics
+        metrics_collector.record_container_spawn(input_data.image)
 
         logger.info(
             "Container spawned successfully",
@@ -269,6 +286,15 @@ async def attach(input_data: AttachInput) -> AttachOutput:
         )
         await attachment_repo.create(attachment)
 
+    # Log audit event
+    audit_logger = get_audit_logger()
+    audit_logger.log_event(
+        AuditEventType.CONTAINER_ATTACH,
+        container_id=container_id,
+        client_name=input_data.client_name,
+        session_id=input_data.session_id,
+    )
+
     logger.info(
         "Client attached successfully",
         extra={
@@ -315,6 +341,14 @@ async def kill(input_data: KillInput) -> KillOutput:
             attachment_repo = AttachmentRepository(session)
             await attachment_repo.detach_all_for_container(input_data.container_id)
 
+        # Log audit event
+        audit_logger = get_audit_logger()
+        audit_logger.log_event(
+            AuditEventType.CONTAINER_KILL,
+            container_id=input_data.container_id,
+            details={"force": input_data.force},
+        )
+
         logger.info(
             "Container killed successfully",
             extra={"container_id": input_data.container_id},
@@ -360,6 +394,22 @@ async def exec_start(input_data: ExecInput) -> ExecOutput:
             timeout_s=input_data.timeout_s,
             idempotency_key=input_data.idempotency_key,
         )
+
+        # Log audit event
+        audit_logger = get_audit_logger()
+        audit_logger.log_event(
+            AuditEventType.EXEC_START,
+            container_id=input_data.container_id,
+            details={
+                "exec_id": exec_id,
+                "cmd": input_data.cmd,
+                "as_root": input_data.as_root,
+            },
+        )
+
+        # Record metrics
+        metrics_collector = get_metrics_collector()
+        metrics_collector.record_exec(input_data.container_id, "started")
 
         logger.info("Exec started successfully", extra={"exec_id": exec_id})
 
@@ -482,6 +532,18 @@ async def fs_read(input_data: FileReadInput) -> FileReadOutput:
         # Read file and get metadata in one call
         content, file_info = await manager.read(input_data.container_id, input_data.path)
 
+        # Log audit event
+        audit_logger = get_audit_logger()
+        audit_logger.log_event(
+            AuditEventType.FS_READ,
+            container_id=input_data.container_id,
+            details={"path": input_data.path, "size_bytes": file_info.size},
+        )
+
+        # Record metrics
+        metrics_collector = get_metrics_collector()
+        metrics_collector.record_fs_operation("read")
+
         return FileReadOutput(
             content=content,
             etag=file_info.etag,
@@ -527,6 +589,18 @@ async def fs_write(input_data: FileWriteInput) -> FileWriteOutput:
         # Get file size
         file_info = await manager.stat(input_data.container_id, input_data.path)
 
+        # Log audit event
+        audit_logger = get_audit_logger()
+        audit_logger.log_event(
+            AuditEventType.FS_WRITE,
+            container_id=input_data.container_id,
+            details={"path": input_data.path, "size_bytes": file_info.size},
+        )
+
+        # Record metrics
+        metrics_collector = get_metrics_collector()
+        metrics_collector.record_fs_operation("write")
+
         return FileWriteOutput(
             path=input_data.path,
             etag=new_etag,
@@ -565,6 +639,18 @@ async def fs_delete(input_data: FileDeleteInput) -> FileDeleteOutput:
 
         # Delete file/directory
         await manager.delete(input_data.container_id, input_data.path)
+
+        # Log audit event
+        audit_logger = get_audit_logger()
+        audit_logger.log_event(
+            AuditEventType.FS_DELETE,
+            container_id=input_data.container_id,
+            details={"path": input_data.path},
+        )
+
+        # Record metrics
+        metrics_collector = get_metrics_collector()
+        metrics_collector.record_fs_operation("delete")
 
         return FileDeleteOutput(status="deleted", path=input_data.path)
 
