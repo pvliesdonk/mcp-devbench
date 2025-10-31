@@ -197,46 +197,46 @@ async def attach(input_data: AttachInput) -> AttachOutput:
         },
     )
 
-    try:
-        db_manager = get_db_manager()
+    db_manager = get_db_manager()
 
-        # Get container by ID or alias
-        async with db_manager.get_session() as session:
-            container_repo = ContainerRepository(session)
-            container = await container_repo.get_by_identifier(input_data.target)
+    # Get container by ID or alias
+    async with db_manager.get_session() as session:
+        container_repo = ContainerRepository(session)
+        container = await container_repo.get_by_identifier(input_data.target)
 
-            if not container:
-                raise ContainerNotFoundError(input_data.target)
+        if not container:
+            logger.warning("Container not found for attach", extra={"target": input_data.target})
+            raise ContainerNotFoundError(input_data.target)
 
-            # Create attachment
-            attachment_repo = AttachmentRepository(session)
-            from mcp_devbench.models.attachments import Attachment
+        # Save container_id and alias before leaving context
+        container_id = container.id
+        container_alias = container.alias
 
-            attachment = Attachment(
-                container_id=container.id,
-                client_name=input_data.client_name,
-                session_id=input_data.session_id,
-                attached_at=datetime.now(timezone.utc),
-            )
-            await attachment_repo.create(attachment)
+        # Create attachment
+        attachment_repo = AttachmentRepository(session)
+        from mcp_devbench.models.attachments import Attachment
 
-        logger.info(
-            "Client attached successfully",
-            extra={
-                "container_id": container.id,
-                "client_name": input_data.client_name,
-            },
+        attachment = Attachment(
+            container_id=container_id,
+            client_name=input_data.client_name,
+            session_id=input_data.session_id,
+            attached_at=datetime.now(timezone.utc),
         )
+        await attachment_repo.create(attachment)
 
-        return AttachOutput(
-            container_id=container.id,
-            alias=container.alias,
-            roots=[f"workspace:{container.id}"],
-        )
+    logger.info(
+        "Client attached successfully",
+        extra={
+            "container_id": container_id,
+            "client_name": input_data.client_name,
+        },
+    )
 
-    except Exception as e:
-        logger.error("Failed to attach to container", extra={"error": str(e)})
-        raise
+    return AttachOutput(
+        container_id=container_id,
+        alias=container_alias,
+        roots=[f"workspace:{container_id}"],
+    )
 
 
 @mcp.tool()
