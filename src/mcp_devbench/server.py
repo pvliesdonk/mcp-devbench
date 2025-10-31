@@ -638,8 +638,20 @@ def main() -> None:
     )
 
     try:
+        # Map config transport mode to FastMCP transport parameter
+        # FastMCP expects "streamable" for streamable-http mode
+        transport_map = {
+            "stdio": "stdio",
+            "sse": "sse",
+            "streamable-http": "streamable",
+        }
+
+        transport = transport_map.get(settings.transport_mode)
+        if not transport:
+            raise ValueError(f"Invalid transport mode: {settings.transport_mode}")
+
         # Prepare run kwargs based on transport mode
-        run_kwargs = {"transport": settings.transport_mode}
+        run_kwargs = {"transport": transport}
 
         # Add HTTP-specific settings for HTTP-based transports
         if settings.transport_mode in ("sse", "streamable-http"):
