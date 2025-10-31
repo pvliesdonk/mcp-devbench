@@ -138,10 +138,11 @@ class ContainerRepository(BaseRepository[Container]):
         Returns:
             List of old transient containers
         """
-        cutoff = datetime.utcnow().timestamp() - (days * 86400)
+        from datetime import timedelta
+
+        cutoff = datetime.utcnow() - timedelta(days=days)
         stmt = select(Container).where(
-            Container.persistent == False,  # noqa: E712
-            Container.last_seen < datetime.fromtimestamp(cutoff),
+            Container.persistent.is_(False), Container.last_seen < cutoff
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())

@@ -78,12 +78,12 @@ class ContainerManager:
 
             # Prepare volume configuration
             if persistent:
-                volume_name = f"mcpdevbench_{container_id}"
+                volume_name = f"mcpdevbench_persist_{container_id}"
                 volumes = {volume_name: {"bind": "/workspace", "mode": "rw"}}
             else:
-                # Docker manages temporary volume
-                volumes = {f"mcpdevbench_tmp_{container_id}": {"bind": "/workspace", "mode": "rw"}}
+                # Docker manages temporary volume with distinct naming
                 volume_name = None
+                volumes = {f"mcpdevbench_transient_{container_id}": {"bind": "/workspace", "mode": "rw"}}
 
             # Create Docker container
             docker_container: DockerContainer = self.docker_client.containers.create(

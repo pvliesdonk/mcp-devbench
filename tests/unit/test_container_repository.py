@@ -185,6 +185,7 @@ async def test_delete_container(db_session):
     await repo.create(container)
 
     await repo.delete(container)
+    await db_session.commit()  # Ensure deletion is committed
 
     retrieved = await repo.get(container.id)
     assert retrieved is None
