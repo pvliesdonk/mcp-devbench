@@ -10,6 +10,7 @@ from docker import DockerClient
 from docker.errors import APIError, NotFound
 
 from mcp_devbench.config import get_settings
+from mcp_devbench.managers.output_streamer import get_output_streamer
 from mcp_devbench.models.database import get_db_manager
 from mcp_devbench.models.execs import Exec
 from mcp_devbench.repositories.containers import ContainerRepository
@@ -69,6 +70,7 @@ class ExecManager:
         self.settings = get_settings()
         self.docker_client: DockerClient = get_docker_client()
         self.db_manager = get_db_manager()
+        self.output_streamer = get_output_streamer()
         
         # Semaphores for limiting concurrent execs per container
         self._container_semaphores: Dict[str, asyncio.Semaphore] = {}
@@ -152,6 +154,9 @@ class ExecManager:
         )
         self._active_execs[exec_id] = task
         
+        # Initialize output streaming
+        await self.output_streamer.init_exec(exec_id)
+        
         logger.info(
             "Exec started",
             extra={
@@ -223,7 +228,13 @@ class ExecManager:
                     stdout_data = exec_instance.output[0] if exec_instance.output[0] else b""
                     stderr_data = exec_instance.output[1] if exec_instance.output[1] else b""
                     
-                    # Decode output
+                    # Stream output chunks
+                    if stdout_data:
+                        await self.output_streamer.add_output(exec_id, "stdout", stdout_data)
+                    if stderr_data:
+                        await self.output_streamer.add_output(exec_id, "stderr", stderr_data)
+                    
+                    # Decode output for logging
                     stdout = stdout_data.decode("utf-8", errors="replace")
                     stderr = stderr_data.decode("utf-8", errors="replace")
                     
@@ -262,6 +273,10 @@ class ExecManager:
                 usage = {"wall_ms": timeout_s * 1000, "timeout": True}
             
             finally:
+                # Mark exec as complete in output streamer
+                if exit_code is not None:
+                    await self.output_streamer.complete(exec_id, exit_code, usage)
+                
                 # Update database with result
                 async with self.db_manager.get_session() as session:
                     exec_repo = ExecRepository(session)
@@ -293,15 +308,40 @@ class ExecManager:
             
             is_complete = exec_entry.ended_at is not None
             
-            # For now, return basic result info
-            # In Feature 2.2, we'll add proper streaming output
             return ExecResult(
                 exec_id=exec_id,
                 exit_code=exec_entry.exit_code,
-                output="",  # Will be populated in Feature 2.2
+                output="",  # Output is now streamed via poll_output
                 is_complete=is_complete,
                 usage=exec_entry.usage,
             )
+
+    async def poll_output(
+        self, exec_id: str, after_seq: Optional[int] = None
+    ) -> tuple[List[Dict], bool]:
+        """
+        Poll for output chunks after a given sequence number.
+        
+        Args:
+            exec_id: Exec ID
+            after_seq: Return chunks after this sequence (None for all)
+            
+        Returns:
+            Tuple of (chunks, is_complete)
+            
+        Raises:
+            ExecNotFoundError: If exec not found
+        """
+        # Verify exec exists
+        async with self.db_manager.get_session() as session:
+            exec_repo = ExecRepository(session)
+            exec_entry = await exec_repo.get(exec_id)
+            
+            if not exec_entry:
+                raise ExecNotFoundError(exec_id)
+        
+        # Poll from output streamer
+        return await self.output_streamer.poll(exec_id, after_seq)
 
     async def get_active_execs(self, container_id: str) -> List[Exec]:
         """
@@ -319,7 +359,7 @@ class ExecManager:
 
     async def cleanup_old_execs(self, hours: int = 24) -> int:
         """
-        Clean up old completed execs.
+        Clean up old completed execs and their output buffers.
         
         Args:
             hours: Age in hours
@@ -333,6 +373,10 @@ class ExecManager:
             
             count = 0
             for exec_entry in old_execs:
+                # Clean up output buffers
+                await self.output_streamer.cleanup(exec_entry.exec_id)
+                
+                # Delete from database
                 await exec_repo.delete(exec_entry)
                 count += 1
             
