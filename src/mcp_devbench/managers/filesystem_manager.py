@@ -1,19 +1,16 @@
 """Filesystem manager for Docker container workspace operations."""
 
-import asyncio
 import base64
 import hashlib
 import io
-import json
 import os
 import posixpath
-import re
 import shlex
 import tarfile
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Any, AsyncIterator, BinaryIO, List, Optional, Union
+from typing import Any, AsyncIterator, List, Optional
 
 from docker import DockerClient
 from docker.errors import APIError, NotFound
@@ -498,11 +495,11 @@ class FilesystemManager:
                     continue
 
                 file_path, size_str, perms, mtime_str, file_type = parts
-                
+
                 # Parse mtime (format is timestamp with decimals)
                 mtime_float = float(mtime_str)
                 mtime = datetime.fromtimestamp(mtime_float)
-                
+
                 is_dir = file_type == "d"
                 size = int(size_str) if not is_dir else 0
 
@@ -853,14 +850,19 @@ class FilesystemManager:
             # Create the full command pipeline
             if include_globs or exclude_globs:
                 # Use find to filter files, then tar
-                full_cmd = f"cd {shlex.quote(normalized_path)} && {' '.join(shlex.quote(p) for p in find_parts)} | tar -c"
+                find_cmd = " ".join(shlex.quote(p) for p in find_parts)
+                full_cmd = (
+                    f"cd {shlex.quote(normalized_path)} && {find_cmd} | tar -c"
+                )
                 if compress:
                     full_cmd += "z"
                 full_cmd += " -T -"
             else:
                 # Just tar everything
                 tar_flags = "czf" if compress else "cf"
-                full_cmd = f"tar -{tar_flags} - -C {shlex.quote(normalized_path)} ."
+                full_cmd = (
+                    f"tar -{tar_flags} - -C {shlex.quote(normalized_path)} ."
+                )
 
             # Execute tar command and stream output
             exec_result = container.exec_run(
@@ -870,8 +872,7 @@ class FilesystemManager:
                 demux=False,
             )
 
-            # Stream the output in chunks
-            chunk_size = 65536  # 64KB chunks
+            # Stream the output in chunks (Docker handles chunking)
             for chunk in exec_result.output:
                 if chunk:
                     yield chunk
@@ -937,7 +938,8 @@ class FilesystemManager:
             await self._validate_tar_contents(tar_data, normalized_dest)
 
             # Create a temporary file to hold the tar data
-            temp_tar_path = f"/tmp/mcp_import_{hashlib.md5(str(datetime.now()).encode()).hexdigest()[:8]}.tar"
+            timestamp_hash = hashlib.md5(str(datetime.now()).encode()).hexdigest()[:8]
+            temp_tar_path = f"/tmp/mcp_import_{timestamp_hash}.tar"
 
             # Write tar data to temporary file in container
             tar_b64 = base64.b64encode(tar_data).decode("ascii")

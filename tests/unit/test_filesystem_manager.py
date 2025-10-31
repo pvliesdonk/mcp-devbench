@@ -1,14 +1,11 @@
 """Unit tests for FilesystemManager."""
 
-import base64
-from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from mcp_devbench.managers.filesystem_manager import (
     BatchOperation,
-    FileInfo,
     FilesystemManager,
     OperationType,
 )
@@ -86,22 +83,22 @@ class TestReadOperation:
         """Test reading an existing file."""
         # Setup mocks
         mock_docker_client.containers.get.return_value = mock_container
-        
+
         # Mock stat command output
         stat_output = MagicMock()
         stat_output.exit_code = 0
         stat_output.output = b"13|644|1609459200"  # size|perms|mtime
-        
+
         # Mock read command output
         read_output = MagicMock()
         read_output.exit_code = 0
         read_output.output = b"Hello, World!"
-        
+
         # Mock is_dir check
         is_dir_output = MagicMock()
         is_dir_output.exit_code = 0
         is_dir_output.output = b"no"
-        
+
         mock_container.exec_run.side_effect = [
             stat_output,
             read_output,
@@ -126,7 +123,7 @@ class TestReadOperation:
         """Test reading a nonexistent file."""
         # Setup mocks
         mock_docker_client.containers.get.return_value = mock_container
-        
+
         stat_output = MagicMock()
         stat_output.exit_code = 1
         mock_container.exec_run.return_value = stat_output
@@ -151,16 +148,16 @@ class TestWriteOperation:
         """Test writing a new file."""
         # Setup mocks
         mock_docker_client.containers.get.return_value = mock_container
-        
+
         # Mock write command
         write_output = MagicMock()
         write_output.exit_code = 0
-        
+
         # Mock stat command for etag calculation
         stat_output = MagicMock()
         stat_output.exit_code = 0
         stat_output.output = b"1609459200"  # mtime
-        
+
         mock_container.exec_run.side_effect = [
             write_output,
             stat_output,
@@ -180,17 +177,17 @@ class TestWriteOperation:
         """Test writing file creates parent directories."""
         # Setup mocks
         mock_docker_client.containers.get.return_value = mock_container
-        
+
         mkdir_output = MagicMock()
         mkdir_output.exit_code = 0
-        
+
         write_output = MagicMock()
         write_output.exit_code = 0
-        
+
         stat_output = MagicMock()
         stat_output.exit_code = 0
         stat_output.output = b"1609459200"
-        
+
         mock_container.exec_run.side_effect = [
             mkdir_output,
             write_output,
@@ -211,19 +208,19 @@ class TestWriteOperation:
         """Test write fails with mismatched ETag."""
         # Setup mocks for read operation
         mock_docker_client.containers.get.return_value = mock_container
-        
+
         stat_output = MagicMock()
         stat_output.exit_code = 0
         stat_output.output = b"5|644|1609459200"
-        
+
         read_output = MagicMock()
         read_output.exit_code = 0
         read_output.output = b"hello"
-        
+
         is_dir_output = MagicMock()
         is_dir_output.exit_code = 0
         is_dir_output.output = b"no"
-        
+
         mock_container.exec_run.side_effect = [
             stat_output,
             read_output,
@@ -250,7 +247,7 @@ class TestDeleteOperation:
         """Test deleting an existing file."""
         # Setup mocks
         mock_docker_client.containers.get.return_value = mock_container
-        
+
         delete_output = MagicMock()
         delete_output.exit_code = 0
         mock_container.exec_run.return_value = delete_output
@@ -269,15 +266,15 @@ class TestDeleteOperation:
         """Test deleting nonexistent file raises error."""
         # Setup mocks
         mock_docker_client.containers.get.return_value = mock_container
-        
+
         # rm fails
         delete_output = MagicMock()
         delete_output.exit_code = 1
-        
+
         # test -e also fails (file doesn't exist)
         test_output = MagicMock()
         test_output.exit_code = 1
-        
+
         mock_container.exec_run.side_effect = [delete_output, test_output]
 
         # Execute and verify
@@ -301,25 +298,25 @@ class TestStatOperation:
         """Test getting stats for existing file."""
         # Setup mocks
         mock_docker_client.containers.get.return_value = mock_container
-        
+
         # Mock stat command
         stat_output = MagicMock()
         stat_output.exit_code = 0
         stat_output.output = b"13|644|1609459200|regular file"
-        
+
         # Mock read for etag (called by stat for files)
         read_stat_output = MagicMock()
         read_stat_output.exit_code = 0
         read_stat_output.output = b"13|644|1609459200"
-        
+
         read_output = MagicMock()
         read_output.exit_code = 0
         read_output.output = b"Hello, World!"
-        
+
         is_dir_output = MagicMock()
         is_dir_output.exit_code = 0
         is_dir_output.output = b"no"
-        
+
         mock_container.exec_run.side_effect = [
             stat_output,
             read_stat_output,
@@ -343,7 +340,7 @@ class TestStatOperation:
         """Test getting stats for directory."""
         # Setup mocks
         mock_docker_client.containers.get.return_value = mock_container
-        
+
         stat_output = MagicMock()
         stat_output.exit_code = 0
         stat_output.output = b"4096|755|1609459200|directory"
@@ -367,7 +364,7 @@ class TestListOperation:
         """Test listing directory contents."""
         # Setup mocks
         mock_docker_client.containers.get.return_value = mock_container
-        
+
         list_output = MagicMock()
         list_output.exit_code = 0
         list_output.output = (
@@ -394,7 +391,7 @@ class TestListOperation:
         """Test listing empty directory."""
         # Setup mocks
         mock_docker_client.containers.get.return_value = mock_container
-        
+
         list_output = MagicMock()
         list_output.exit_code = 0
         list_output.output = b""
@@ -412,15 +409,15 @@ class TestListOperation:
         """Test listing nonexistent directory."""
         # Setup mocks
         mock_docker_client.containers.get.return_value = mock_container
-        
+
         # find fails
         list_output = MagicMock()
         list_output.exit_code = 1
-        
+
         # test -d also fails
         test_output = MagicMock()
         test_output.exit_code = 1
-        
+
         mock_container.exec_run.side_effect = [list_output, test_output]
 
         # Execute and verify
@@ -461,7 +458,7 @@ class TestContainerNotFound:
     ):
         """Test operations fail with nonexistent container."""
         from docker.errors import NotFound
-        
+
         mock_docker_client.containers.get.side_effect = NotFound("Container not found")
 
         with pytest.raises(ContainerNotFoundError):
@@ -989,8 +986,8 @@ class TestImportExportOperations:
         mock_docker_client.containers.get.return_value = mock_container
 
         # Create a simple tar in memory
-        import tarfile
         import io
+        import tarfile
 
         tar_buffer = io.BytesIO()
         with tarfile.open(fileobj=tar_buffer, mode="w") as tar:
@@ -1030,8 +1027,8 @@ class TestImportExportOperations:
         mock_docker_client.containers.get.return_value = mock_container
 
         # Create tar data
-        import tarfile
         import io
+        import tarfile
 
         tar_buffer = io.BytesIO()
         with tarfile.open(fileobj=tar_buffer, mode="w") as tar:
@@ -1093,8 +1090,8 @@ class TestImportExportOperations:
         self, filesystem_manager
     ):
         """Test tar validation rejects absolute paths."""
-        import tarfile
         import io
+        import tarfile
 
         tar_buffer = io.BytesIO()
         with tarfile.open(fileobj=tar_buffer, mode="w") as tar:
@@ -1114,8 +1111,8 @@ class TestImportExportOperations:
         self, filesystem_manager
     ):
         """Test tar validation rejects parent directory references."""
-        import tarfile
         import io
+        import tarfile
 
         tar_buffer = io.BytesIO()
         with tarfile.open(fileobj=tar_buffer, mode="w") as tar:
@@ -1135,8 +1132,8 @@ class TestImportExportOperations:
         self, filesystem_manager
     ):
         """Test tar validation prevents workspace escape."""
-        import tarfile
         import io
+        import tarfile
 
         tar_buffer = io.BytesIO()
         with tarfile.open(fileobj=tar_buffer, mode="w") as tar:
@@ -1155,8 +1152,8 @@ class TestImportExportOperations:
         self, filesystem_manager
     ):
         """Test tar validation accepts valid paths."""
-        import tarfile
         import io
+        import tarfile
 
         tar_buffer = io.BytesIO()
         with tarfile.open(fileobj=tar_buffer, mode="w") as tar:
