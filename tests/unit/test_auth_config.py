@@ -1,6 +1,5 @@
 """Tests for authentication and transport configuration."""
 
-import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -138,7 +137,7 @@ class TestAuthProvider:
         # Mock the __init__ to return None (normal behavior) without making HTTP calls
         mock_oidc_init.return_value = None
 
-        auth = create_auth_provider()
+        create_auth_provider()
         # Verify OIDCProxy was instantiated with correct parameters
         mock_oidc_init.assert_called_once()
         call_kwargs = mock_oidc_init.call_args[1]
@@ -224,7 +223,7 @@ class TestAuthProvider:
         # Mock the __init__ to return None (normal behavior) without making HTTP calls
         mock_oidc_init.return_value = None
 
-        auth = create_auth_provider()
+        create_auth_provider()
         # Verify OIDCProxy was instantiated with correct parameters including optional ones
         mock_oidc_init.assert_called_once()
         call_kwargs = mock_oidc_init.call_args[1]

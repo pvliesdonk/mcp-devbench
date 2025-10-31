@@ -29,7 +29,7 @@ def create_auth_provider() -> Any | None:
         from fastmcp.server.auth import StaticTokenVerifier
 
         logger.info("Configuring bearer token authentication with StaticTokenVerifier")
-        
+
         # StaticTokenVerifier expects a dict of token -> claims
         # For simple bearer auth, we just validate the token exists
         tokens = {settings.bearer_token: {"sub": "api-client", "scope": "api:full"}}
