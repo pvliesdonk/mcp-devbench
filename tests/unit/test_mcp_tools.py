@@ -18,7 +18,6 @@ from mcp_devbench.mcp_tools import (
     KillInput,
     SpawnInput,
 )
-from mcp_devbench.models.attachments import Attachment
 from mcp_devbench.models.containers import Container
 from mcp_devbench.utils.exceptions import ContainerNotFoundError
 
@@ -29,7 +28,6 @@ async def test_spawn_tool():
     from mcp_devbench import server
 
     # Import the actual function, not the decorated one
-    from mcp_devbench import server
 
     with patch("mcp_devbench.server.ContainerManager") as mock_manager_class:
         mock_manager = AsyncMock()
@@ -274,7 +272,12 @@ async def test_exec_poll_tool():
             mock_streamer_fn.return_value = mock_streamer
             mock_streamer.get_messages = MagicMock(
                 return_value=[
-                    {"seq": 1, "stream": "stdout", "data": "test output", "ts": "2025-10-31T12:00:00"}
+                    {
+                        "seq": 1,
+                        "stream": "stdout",
+                        "data": "test output",
+                        "ts": "2025-10-31T12:00:00",
+                    }
                 ]
             )
 
