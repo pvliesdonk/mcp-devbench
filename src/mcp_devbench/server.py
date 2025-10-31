@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from fastmcp import FastMCP
 from pydantic import BaseModel
 
+from mcp_devbench.auth import create_auth_provider
 from mcp_devbench.config import get_settings
 from mcp_devbench.managers.container_manager import ContainerManager
 from mcp_devbench.managers.exec_manager import ExecManager
@@ -60,8 +61,11 @@ class HealthCheckResponse(BaseModel):
     version: str = "0.1.0"
 
 
-# Initialize FastMCP server
-mcp = FastMCP("MCP DevBench")
+# Initialize authentication provider
+auth_provider = create_auth_provider()
+
+# Initialize FastMCP server with authentication
+mcp = FastMCP("MCP DevBench", auth=auth_provider)
 logger = get_logger(__name__)
 
 
@@ -625,15 +629,26 @@ def main() -> None:
     logger.info(
         "Starting server",
         extra={
-            "host": settings.host,
-            "port": settings.port,
+            "transport": settings.transport_mode,
+            "auth_mode": settings.auth_mode,
+            "host": settings.host if settings.transport_mode != "stdio" else "N/A",
+            "port": settings.port if settings.transport_mode != "stdio" else "N/A",
             "allowed_registries": settings.allowed_registries_list,
         },
     )
 
     try:
-        # Run the FastMCP server with streamable HTTP transport
-        mcp.run(transport="streamable", host=settings.host, port=settings.port)
+        # Prepare run kwargs based on transport mode
+        run_kwargs = {"transport": settings.transport_mode}
+
+        # Add HTTP-specific settings for HTTP-based transports
+        if settings.transport_mode in ("sse", "streamable-http"):
+            run_kwargs["host"] = settings.host
+            run_kwargs["port"] = settings.port
+            run_kwargs["path"] = settings.path
+
+        # Run the FastMCP server with configured transport
+        mcp.run(**run_kwargs)
     except KeyboardInterrupt:
         logger.info("Received keyboard interrupt, shutting down")
         sys.exit(0)

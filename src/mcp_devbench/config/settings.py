@@ -1,7 +1,7 @@
 """Settings and configuration management for MCP DevBench."""
 
 from functools import lru_cache
-from typing import List
+from typing import List, Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -84,10 +84,76 @@ class Settings(BaseSettings):
         description="Interval in seconds for warm container health checks",
     )
 
+    # Transport configuration
+    transport_mode: Literal["stdio", "sse", "streamable-http"] = Field(
+        default="streamable-http",
+        description="Transport protocol for MCP server (stdio, sse, or streamable-http)",
+    )
+
+    path: str = Field(
+        default="/mcp",
+        description="Path for HTTP-based transports (sse or streamable-http)",
+    )
+
+    # Authentication configuration
+    auth_mode: Literal["none", "bearer", "oauth", "oidc"] = Field(
+        default="none",
+        description="Authentication mode (none, bearer, oauth, or oidc)",
+    )
+
+    # Bearer token authentication
+    bearer_token: str | None = Field(
+        default=None,
+        description="Bearer token for bearer authentication mode",
+    )
+
+    # OAuth/OIDC configuration
+    oauth_client_id: str | None = Field(
+        default=None,
+        description="OAuth/OIDC client ID",
+    )
+
+    oauth_client_secret: str | None = Field(
+        default=None,
+        description="OAuth/OIDC client secret",
+    )
+
+    oauth_config_url: str | None = Field(
+        default=None,
+        description="OAuth provider configuration URL (for OIDC, this is the .well-known URL)",
+    )
+
+    oauth_base_url: str | None = Field(
+        default=None,
+        description="Base URL of this server for OAuth callbacks",
+    )
+
+    oauth_redirect_path: str = Field(
+        default="/auth/callback",
+        description="OAuth callback redirect path",
+    )
+
+    oauth_audience: str | None = Field(
+        default=None,
+        description="OAuth audience parameter (required by some providers like Auth0)",
+    )
+
+    oauth_required_scopes: str = Field(
+        default="",
+        description="Comma-separated list of required OAuth scopes",
+    )
+
     @property
     def allowed_registries_list(self) -> List[str]:
         """Parse allowed registries into a list."""
         return [r.strip() for r in self.allowed_registries.split(",") if r.strip()]
+
+    @property
+    def oauth_required_scopes_list(self) -> List[str]:
+        """Parse OAuth required scopes into a list."""
+        if not self.oauth_required_scopes:
+            return []
+        return [s.strip() for s in self.oauth_required_scopes.split(",") if s.strip()]
 
 
 @lru_cache
