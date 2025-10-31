@@ -8,19 +8,18 @@ from typing import Deque, Dict, List, Optional
 
 from mcp_devbench.utils import get_logger
 
-
 logger = get_logger(__name__)
 
 
 @dataclass
 class OutputChunk:
     """A chunk of output from a command execution."""
-    
+
     seq: int
     stream: str  # "stdout" or "stderr"
     data: bytes
     ts: datetime
-    
+
     def to_dict(self) -> Dict:
         """Convert to dictionary for serialization."""
         return {
@@ -34,12 +33,12 @@ class OutputChunk:
 @dataclass
 class CompletionChunk:
     """Final chunk indicating completion of execution."""
-    
+
     seq: int
     exit_code: int
     usage: Dict
     ts: datetime
-    
+
     def to_dict(self) -> Dict:
         """Convert to dictionary for serialization."""
         return {
@@ -58,13 +57,13 @@ class OutputStreamer:
     Uses bounded ring buffers to prevent memory exhaustion and supports
     cursor-based polling for ordered delivery.
     """
-    
+
     # Default maximum buffer size per exec (64MB)
     DEFAULT_MAX_BUFFER_SIZE = 64 * 1024 * 1024
-    
+
     # Maximum number of chunks to keep in buffer
     DEFAULT_MAX_CHUNKS = 10000
-    
+
     def __init__(
         self,
         max_buffer_size: int = DEFAULT_MAX_BUFFER_SIZE,
@@ -79,19 +78,19 @@ class OutputStreamer:
         """
         self.max_buffer_size = max_buffer_size
         self.max_chunks = max_chunks
-        
+
         # Buffers per exec ID: deque of (OutputChunk | CompletionChunk)
         self._buffers: Dict[str, Deque] = {}
-        
+
         # Current sequence number per exec ID
         self._sequences: Dict[str, int] = {}
-        
+
         # Total buffered bytes per exec ID
         self._buffered_bytes: Dict[str, int] = {}
-        
+
         # Lock for thread-safe operations
         self._locks: Dict[str, asyncio.Lock] = {}
-        
+
         # Completion flags
         self._completed: Dict[str, bool] = {}
 
@@ -115,7 +114,7 @@ class OutputStreamer:
                 self._sequences[exec_id] = 0
                 self._buffered_bytes[exec_id] = 0
                 self._completed[exec_id] = False
-                
+
                 logger.debug("Initialized output streaming", extra={"exec_id": exec_id})
 
     async def add_output(
@@ -134,7 +133,7 @@ class OutputStreamer:
         """
         if not data:
             return None
-        
+
         lock = self._get_lock(exec_id)
         async with lock:
             # Check if we have space in buffer
@@ -148,29 +147,29 @@ class OutputStreamer:
                     },
                 )
                 return None
-            
+
             # Check chunk limit
             if len(self._buffers.get(exec_id, [])) >= self.max_chunks:
                 # Remove oldest chunk
                 oldest = self._buffers[exec_id].popleft()
                 if isinstance(oldest, OutputChunk):
                     self._buffered_bytes[exec_id] -= len(oldest.data)
-            
+
             # Create chunk
             seq = self._sequences[exec_id]
             self._sequences[exec_id] += 1
-            
+
             chunk = OutputChunk(
                 seq=seq,
                 stream=stream,
                 data=data,
                 ts=datetime.utcnow(),
             )
-            
+
             # Add to buffer
             self._buffers[exec_id].append(chunk)
             self._buffered_bytes[exec_id] += len(data)
-            
+
             return seq
 
     async def complete(
@@ -191,21 +190,21 @@ class OutputStreamer:
         async with lock:
             seq = self._sequences.get(exec_id, 0)
             self._sequences[exec_id] = seq + 1
-            
+
             chunk = CompletionChunk(
                 seq=seq,
                 exit_code=exit_code,
                 usage=usage,
                 ts=datetime.utcnow(),
             )
-            
+
             if exec_id in self._buffers:
                 self._buffers[exec_id].append(chunk)
             else:
                 self._buffers[exec_id] = deque([chunk])
-            
+
             self._completed[exec_id] = True
-            
+
             logger.info(
                 "Exec completed",
                 extra={
@@ -214,7 +213,7 @@ class OutputStreamer:
                     "seq": seq,
                 },
             )
-            
+
             return seq
 
     async def poll(
@@ -234,15 +233,15 @@ class OutputStreamer:
         async with lock:
             if exec_id not in self._buffers:
                 return [], False
-            
+
             # Filter chunks by sequence
             chunks = []
             for chunk in self._buffers[exec_id]:
                 if after_seq is None or chunk.seq > after_seq:
                     chunks.append(chunk.to_dict())
-            
+
             is_complete = self._completed.get(exec_id, False)
-            
+
             return chunks, is_complete
 
     async def get_stats(self, exec_id: str) -> Dict:
@@ -284,7 +283,7 @@ class OutputStreamer:
                 del self._completed[exec_id]
             if exec_id in self._locks:
                 del self._locks[exec_id]
-            
+
             logger.debug("Cleaned up output buffers", extra={"exec_id": exec_id})
 
     async def cleanup_old(self, max_age_seconds: int = 3600) -> int:
@@ -299,7 +298,7 @@ class OutputStreamer:
         """
         # Get list of exec IDs to clean (to avoid modifying dict during iteration)
         exec_ids_to_clean = []
-        
+
         for exec_id in list(self._buffers.keys()):
             lock = self._get_lock(exec_id)
             async with lock:
@@ -312,17 +311,17 @@ class OutputStreamer:
                         age = (datetime.utcnow() - last_chunk.ts).total_seconds()
                         if age > max_age_seconds:
                             exec_ids_to_clean.append(exec_id)
-        
+
         # Clean up identified execs
         for exec_id in exec_ids_to_clean:
             await self.cleanup(exec_id)
-        
+
         if exec_ids_to_clean:
             logger.info(
                 "Cleaned up old output buffers",
                 extra={"count": len(exec_ids_to_clean)},
             )
-        
+
         return len(exec_ids_to_clean)
 
 

@@ -116,11 +116,38 @@ src/mcp_devbench/
 
 ## Project Status
 
-This project is currently implementing **Epic 1: Foundation Layer**:
+This project has completed **Epic 1: Foundation Layer** and **Epic 2: Command Execution Engine**:
 
+### Epic 1: Foundation Layer ✅
 - [x] Feature 1.1: Project Scaffold & Configuration
-- [ ] Feature 1.2: State Store & Schema
-- [ ] Feature 1.3: Docker Container Lifecycle Manager
+- [x] Feature 1.2: State Store & Schema
+- [x] Feature 1.3: Docker Container Lifecycle Manager
+
+### Epic 2: Command Execution Engine ✅
+- [x] Feature 2.1: Async Exec Core
+  - ExecManager with docker-py integration
+  - Parallel execution with semaphore-based limiting (4 concurrent per container)
+  - Resource tracking and timeout handling
+  - Root/non-root user support
+  
+- [x] Feature 2.2: Output Streaming with MCP poll-based streaming
+  - OutputStreamer with bounded ring buffers (64MB default)
+  - Sequence-numbered chunks for ordered delivery
+  - Cursor-based polling mechanism
+  - Backpressure handling with memory limits
+  
+- [x] Feature 2.3: Exec Cancellation & Idempotency
+  - Task cancellation support
+  - Idempotency keys with 24-hour TTL
+  - Automatic cleanup of old executions
+  - Cleanup of expired idempotency keys
+
+### Current Status
+The project now has:
+- Full container lifecycle management
+- Asynchronous command execution with streaming output
+- 29 unit tests passing (100% success rate)
+- Comprehensive error handling and resource management
 
 See [mcp-devbench-work-breakdown.md](mcp-devbench-work-breakdown.md) for the complete implementation roadmap.
 
