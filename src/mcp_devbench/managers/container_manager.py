@@ -10,6 +10,7 @@ from docker.models.containers import Container as DockerContainer
 
 from mcp_devbench.config import get_settings
 from mcp_devbench.managers.image_policy_manager import get_image_policy_manager
+from mcp_devbench.managers.security_manager import get_security_manager
 from mcp_devbench.models.containers import Container
 from mcp_devbench.models.database import get_db_manager
 from mcp_devbench.repositories.containers import ContainerRepository
@@ -33,6 +34,7 @@ class ContainerManager:
         self.docker_client: DockerClient = get_docker_client()
         self.db_manager = get_db_manager()
         self.image_policy = get_image_policy_manager()
+        self.security = get_security_manager()
 
     async def create_container(
         self,
@@ -93,17 +95,19 @@ class ContainerManager:
                     f"mcpdevbench_transient_{container_id}": {"bind": "/workspace", "mode": "rw"}
                 }
 
+            # Get security configuration
+            security_config = self.security.get_container_security_config(as_root=False)
+
             # Create Docker container with security controls
             docker_container: DockerContainer = self.docker_client.containers.create(
                 image=actual_image,
                 labels=labels,
                 volumes=volumes,
-                user="1000:1000",  # Run as non-root
-                network_mode="bridge",
                 detach=True,
                 tty=True,
                 stdin_open=True,
                 working_dir="/workspace",
+                **security_config,
             )
 
             logger.info(

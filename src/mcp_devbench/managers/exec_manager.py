@@ -11,6 +11,7 @@ from docker.errors import APIError, NotFound
 
 from mcp_devbench.config import get_settings
 from mcp_devbench.managers.output_streamer import get_output_streamer
+from mcp_devbench.managers.security_manager import get_security_manager
 from mcp_devbench.models.database import get_db_manager
 from mcp_devbench.models.execs import Exec
 from mcp_devbench.repositories.containers import ContainerRepository
@@ -68,6 +69,7 @@ class ExecManager:
         self.docker_client: DockerClient = get_docker_client()
         self.db_manager = get_db_manager()
         self.output_streamer = get_output_streamer()
+        self.security = get_security_manager()
 
         # Semaphores for limiting concurrent execs per container
         self._container_semaphores: Dict[str, asyncio.Semaphore] = {}
@@ -240,8 +242,25 @@ class ExecManager:
                 try:
                     docker_container = self.docker_client.containers.get(container.docker_id)
 
-                    # Determine user
-                    user = "0" if as_root else "1000"
+                    # Validate and audit as_root request
+                    if as_root:
+                        self.security.validate_as_root_request(
+                            container_id=container_id,
+                            image=container.image,
+                            reason=f"exec command: {' '.join(cmd)}",
+                        )
+                        self.security.audit_security_event(
+                            event_type="exec_as_root",
+                            container_id=container_id,
+                            details={
+                                "exec_id": exec_id,
+                                "cmd": cmd,
+                                "image": container.image,
+                            },
+                        )
+
+                    # Get security configuration for exec
+                    security_config = self.security.get_exec_security_config(as_root=as_root)
 
                     # Run exec_run in a thread to avoid blocking the event loop
                     # and wrap with timeout
@@ -251,7 +270,8 @@ class ExecManager:
                             cmd=cmd,
                             workdir=cwd,
                             environment=env,
-                            user=user,
+                            user=security_config["user"],
+                            privileged=security_config["privileged"],
                             demux=True,  # Separate stdout and stderr
                         )
 
