@@ -907,3 +907,301 @@ class TestBatchOperations:
 
         # Verify it failed
         assert result.success is False
+
+
+@pytest.mark.asyncio
+class TestImportExportOperations:
+    """Tests for import/export operations."""
+
+    async def test_export_tar_basic(
+        self, filesystem_manager, mock_docker_client, mock_container
+    ):
+        """Test basic tar export."""
+        mock_docker_client.containers.get.return_value = mock_container
+
+        # Mock tar command output
+        tar_data = b"fake tar data"
+
+        exec_result = MagicMock()
+        exec_result.output = iter([tar_data])
+        mock_container.exec_run.return_value = exec_result
+
+        # Execute export
+        chunks = []
+        async for chunk in filesystem_manager.export_tar("c_test123", "/workspace"):
+            chunks.append(chunk)
+
+        # Verify
+        assert len(chunks) == 1
+        assert chunks[0] == tar_data
+
+    async def test_export_tar_with_compression(
+        self, filesystem_manager, mock_docker_client, mock_container
+    ):
+        """Test tar export with compression."""
+        mock_docker_client.containers.get.return_value = mock_container
+
+        tar_data = b"compressed tar data"
+
+        exec_result = MagicMock()
+        exec_result.output = iter([tar_data])
+        mock_container.exec_run.return_value = exec_result
+
+        # Execute export with compression
+        chunks = []
+        async for chunk in filesystem_manager.export_tar(
+            "c_test123", "/workspace", compress=True
+        ):
+            chunks.append(chunk)
+
+        # Verify
+        assert len(chunks) == 1
+        # Verify compression flag was used in command
+        call_args = mock_container.exec_run.call_args
+        assert "-z" in str(call_args) or "czf" in str(call_args)
+
+    async def test_export_tar_streaming(
+        self, filesystem_manager, mock_docker_client, mock_container
+    ):
+        """Test tar export streams data in chunks."""
+        mock_docker_client.containers.get.return_value = mock_container
+
+        # Multiple chunks
+        chunks_data = [b"chunk1", b"chunk2", b"chunk3"]
+
+        exec_result = MagicMock()
+        exec_result.output = iter(chunks_data)
+        mock_container.exec_run.return_value = exec_result
+
+        # Execute export
+        received_chunks = []
+        async for chunk in filesystem_manager.export_tar("c_test123", "/workspace"):
+            received_chunks.append(chunk)
+
+        # Verify all chunks received
+        assert len(received_chunks) == 3
+        assert received_chunks == chunks_data
+
+    async def test_import_tar_basic(
+        self, filesystem_manager, mock_docker_client, mock_container
+    ):
+        """Test basic tar import."""
+        mock_docker_client.containers.get.return_value = mock_container
+
+        # Create a simple tar in memory
+        import tarfile
+        import io
+
+        tar_buffer = io.BytesIO()
+        with tarfile.open(fileobj=tar_buffer, mode="w") as tar:
+            # Add a simple file
+            file_data = b"test content"
+            file_info = tarfile.TarInfo(name="test.txt")
+            file_info.size = len(file_data)
+            tar.addfile(file_info, io.BytesIO(file_data))
+
+        tar_data = tar_buffer.getvalue()
+
+        # Mock exec commands
+        def exec_side_effect(*args, **kwargs):
+            result = MagicMock()
+            result.exit_code = 0
+            cmd = args[0] if args else ""
+            if "wc -l" in str(cmd):
+                result.output = b"1"  # 1 file created
+            return result
+
+        mock_container.exec_run.side_effect = exec_side_effect
+
+        # Execute import
+        result = await filesystem_manager.import_tar(
+            "c_test123", "/workspace", tar_data=tar_data
+        )
+
+        # Verify
+        assert result["bytes_written"] == len(tar_data)
+        assert result["files_created"] == 1
+        assert result["dest_path"] == "/workspace"
+
+    async def test_import_tar_with_streaming(
+        self, filesystem_manager, mock_docker_client, mock_container
+    ):
+        """Test tar import with streaming."""
+        mock_docker_client.containers.get.return_value = mock_container
+
+        # Create tar data
+        import tarfile
+        import io
+
+        tar_buffer = io.BytesIO()
+        with tarfile.open(fileobj=tar_buffer, mode="w") as tar:
+            file_data = b"streamed content"
+            file_info = tarfile.TarInfo(name="streamed.txt")
+            file_info.size = len(file_data)
+            tar.addfile(file_info, io.BytesIO(file_data))
+
+        tar_data = tar_buffer.getvalue()
+
+        # Create async iterator for streaming
+        async def tar_stream():
+            # Split into chunks
+            chunk_size = 100
+            for i in range(0, len(tar_data), chunk_size):
+                yield tar_data[i : i + chunk_size]
+
+        # Mock exec commands
+        def exec_side_effect(*args, **kwargs):
+            result = MagicMock()
+            result.exit_code = 0
+            cmd = args[0] if args else ""
+            if "wc -l" in str(cmd):
+                result.output = b"1"
+            return result
+
+        mock_container.exec_run.side_effect = exec_side_effect
+
+        # Execute import with streaming
+        result = await filesystem_manager.import_tar(
+            "c_test123", "/workspace", stream=tar_stream()
+        )
+
+        # Verify
+        assert result["bytes_written"] == len(tar_data)
+        assert result["files_created"] == 1
+
+    async def test_import_tar_size_limit(
+        self, filesystem_manager, mock_docker_client, mock_container
+    ):
+        """Test tar import respects size limits."""
+        mock_docker_client.containers.get.return_value = mock_container
+
+        # Create large tar stream
+        async def large_tar_stream():
+            # Yield 2MB of data (exceeds 1MB limit)
+            for _ in range(20):
+                yield b"x" * (100 * 1024)  # 100KB chunks
+
+        # Execute import with small size limit
+        with pytest.raises(ValueError) as exc_info:
+            await filesystem_manager.import_tar(
+                "c_test123", "/workspace", stream=large_tar_stream(), max_size_mb=1
+            )
+
+        assert "exceeds maximum size" in str(exc_info.value)
+
+    async def test_validate_tar_rejects_absolute_paths(
+        self, filesystem_manager
+    ):
+        """Test tar validation rejects absolute paths."""
+        import tarfile
+        import io
+
+        tar_buffer = io.BytesIO()
+        with tarfile.open(fileobj=tar_buffer, mode="w") as tar:
+            file_info = tarfile.TarInfo(name="/etc/passwd")
+            file_info.size = 0
+            tar.addfile(file_info, io.BytesIO(b""))
+
+        tar_data = tar_buffer.getvalue()
+
+        # Validate should fail
+        with pytest.raises(PathSecurityError) as exc_info:
+            await filesystem_manager._validate_tar_contents(tar_data, "/workspace")
+
+        assert "absolute paths" in str(exc_info.value)
+
+    async def test_validate_tar_rejects_parent_refs(
+        self, filesystem_manager
+    ):
+        """Test tar validation rejects parent directory references."""
+        import tarfile
+        import io
+
+        tar_buffer = io.BytesIO()
+        with tarfile.open(fileobj=tar_buffer, mode="w") as tar:
+            file_info = tarfile.TarInfo(name="../etc/passwd")
+            file_info.size = 0
+            tar.addfile(file_info, io.BytesIO(b""))
+
+        tar_data = tar_buffer.getvalue()
+
+        # Validate should fail
+        with pytest.raises(PathSecurityError) as exc_info:
+            await filesystem_manager._validate_tar_contents(tar_data, "/workspace")
+
+        assert "parent directory" in str(exc_info.value).lower()
+
+    async def test_validate_tar_rejects_escape_attempts(
+        self, filesystem_manager
+    ):
+        """Test tar validation prevents workspace escape."""
+        import tarfile
+        import io
+
+        tar_buffer = io.BytesIO()
+        with tarfile.open(fileobj=tar_buffer, mode="w") as tar:
+            # Try to escape by using many parent refs
+            file_info = tarfile.TarInfo(name="../../../etc/passwd")
+            file_info.size = 0
+            tar.addfile(file_info, io.BytesIO(b""))
+
+        tar_data = tar_buffer.getvalue()
+
+        # Validate should fail
+        with pytest.raises(PathSecurityError):
+            await filesystem_manager._validate_tar_contents(tar_data, "/workspace")
+
+    async def test_validate_tar_accepts_valid_paths(
+        self, filesystem_manager
+    ):
+        """Test tar validation accepts valid paths."""
+        import tarfile
+        import io
+
+        tar_buffer = io.BytesIO()
+        with tarfile.open(fileobj=tar_buffer, mode="w") as tar:
+            # Valid paths
+            for name in ["file.txt", "subdir/file.txt", "./file.txt"]:
+                file_info = tarfile.TarInfo(name=name)
+                file_info.size = 0
+                tar.addfile(file_info, io.BytesIO(b""))
+
+        tar_data = tar_buffer.getvalue()
+
+        # Validate should succeed (not raise)
+        await filesystem_manager._validate_tar_contents(tar_data, "/workspace")
+
+    async def test_download_file(
+        self, filesystem_manager, mock_docker_client, mock_container
+    ):
+        """Test single file download."""
+        mock_docker_client.containers.get.return_value = mock_container
+
+        # Mock file read
+        stat_output = MagicMock()
+        stat_output.exit_code = 0
+        stat_output.output = b"13|644|1609459200"
+
+        read_output = MagicMock()
+        read_output.exit_code = 0
+        read_output.output = b"downloaded file"
+
+        is_dir_output = MagicMock()
+        is_dir_output.exit_code = 0
+        is_dir_output.output = b"no"
+
+        mock_container.exec_run.side_effect = [
+            stat_output,
+            read_output,
+            is_dir_output,
+        ]
+
+        # Execute download
+        content, file_info = await filesystem_manager.download_file(
+            "c_test123", "file.txt"
+        )
+
+        # Verify
+        assert content == b"downloaded file"
+        assert file_info.path == "/workspace/file.txt"
+        assert file_info.size == 13

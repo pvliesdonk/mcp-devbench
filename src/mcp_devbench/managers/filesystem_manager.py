@@ -1,15 +1,19 @@
 """Filesystem manager for Docker container workspace operations."""
 
+import asyncio
 import base64
 import hashlib
+import io
 import json
 import os
 import posixpath
+import re
 import shlex
+import tarfile
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Any, BinaryIO, List, Optional, Union
+from typing import Any, AsyncIterator, BinaryIO, List, Optional, Union
 
 from docker import DockerClient
 from docker.errors import APIError, NotFound
@@ -789,3 +793,277 @@ class FilesystemManager:
             except Exception as e:
                 logger.warning(f"Failed to rollback {path}: {e}")
                 # Continue with other rollbacks
+
+    async def export_tar(
+        self,
+        container_id: str,
+        path: str = WORKSPACE_ROOT,
+        include_globs: List[str] = None,
+        exclude_globs: List[str] = None,
+        compress: bool = True,
+    ) -> AsyncIterator[bytes]:
+        """
+        Export files from container as tar archive (streaming).
+
+        Args:
+            container_id: Container ID
+            path: Starting path (defaults to workspace root)
+            include_globs: List of glob patterns to include (None = all)
+            exclude_globs: List of glob patterns to exclude
+            compress: Whether to compress with gzip
+
+        Yields:
+            Chunks of tar archive data
+
+        Raises:
+            ContainerNotFoundError: If container not found
+            PathSecurityError: If path is invalid
+            DockerAPIError: If Docker operations fail
+        """
+        normalized_path = self._validate_path(path)
+        container = self._get_container(container_id)
+
+        try:
+            # Build tar command
+            tar_cmd = ["tar", "-C", normalized_path]
+
+            # Add compression if requested
+            if compress:
+                tar_cmd.append("-z")
+
+            tar_cmd.append("-c")
+
+            # Build find command for filtering
+            find_parts = ["find", "."]
+
+            # Add include patterns
+            if include_globs:
+                find_parts.extend(["-type", "f", "("])
+                for i, pattern in enumerate(include_globs):
+                    if i > 0:
+                        find_parts.append("-o")
+                    find_parts.extend(["-path", pattern])
+                find_parts.append(")")
+
+            # Add exclude patterns
+            if exclude_globs:
+                for pattern in exclude_globs:
+                    find_parts.extend(["!", "-path", pattern])
+
+            # Create the full command pipeline
+            if include_globs or exclude_globs:
+                # Use find to filter files, then tar
+                full_cmd = f"cd {shlex.quote(normalized_path)} && {' '.join(shlex.quote(p) for p in find_parts)} | tar -c"
+                if compress:
+                    full_cmd += "z"
+                full_cmd += " -T -"
+            else:
+                # Just tar everything
+                tar_flags = "czf" if compress else "cf"
+                full_cmd = f"tar -{tar_flags} - -C {shlex.quote(normalized_path)} ."
+
+            # Execute tar command and stream output
+            exec_result = container.exec_run(
+                ["sh", "-c", full_cmd],
+                user="1000:1000",
+                stream=True,
+                demux=False,
+            )
+
+            # Stream the output in chunks
+            chunk_size = 65536  # 64KB chunks
+            for chunk in exec_result.output:
+                if chunk:
+                    yield chunk
+
+            logger.info(
+                f"Exported tar from {normalized_path} in container {container_id}"
+            )
+
+        except APIError as e:
+            raise DockerAPIError(f"Failed to export tar: {e}", e)
+
+    async def import_tar(
+        self,
+        container_id: str,
+        dest: str = WORKSPACE_ROOT,
+        stream: AsyncIterator[bytes] = None,
+        tar_data: bytes = None,
+        max_size_mb: int = 1024,
+    ) -> dict:
+        """
+        Import tar archive into container workspace.
+
+        Args:
+            container_id: Container ID
+            dest: Destination path (defaults to workspace root)
+            stream: Async iterator of tar data chunks (for streaming)
+            tar_data: Complete tar data (alternative to stream)
+            max_size_mb: Maximum allowed size in MB
+
+        Returns:
+            Import result with bytes_written and files_created
+
+        Raises:
+            ContainerNotFoundError: If container not found
+            PathSecurityError: If path is invalid or tar tries to escape
+            DockerAPIError: If Docker operations fail
+            ValueError: If tar exceeds size limit
+        """
+        normalized_dest = self._validate_path(dest)
+        container = self._get_container(container_id)
+
+        try:
+            # Collect tar data if streaming
+            if stream:
+                chunks = []
+                total_size = 0
+                max_bytes = max_size_mb * 1024 * 1024
+
+                async for chunk in stream:
+                    total_size += len(chunk)
+                    if total_size > max_bytes:
+                        raise ValueError(
+                            f"Tar archive exceeds maximum size of {max_size_mb}MB"
+                        )
+                    chunks.append(chunk)
+
+                tar_data = b"".join(chunks)
+
+            if not tar_data:
+                raise ValueError("No tar data provided")
+
+            # Validate tar contents before extracting
+            await self._validate_tar_contents(tar_data, normalized_dest)
+
+            # Create a temporary file to hold the tar data
+            temp_tar_path = f"/tmp/mcp_import_{hashlib.md5(str(datetime.now()).encode()).hexdigest()[:8]}.tar"
+
+            # Write tar data to temporary file in container
+            tar_b64 = base64.b64encode(tar_data).decode("ascii")
+            write_cmd = f"echo {shlex.quote(tar_b64)} | base64 -d > {temp_tar_path}"
+            exec_result = container.exec_run(
+                ["sh", "-c", write_cmd],
+                user="1000:1000",
+            )
+
+            if exec_result.exit_code != 0:
+                raise DockerAPIError(
+                    f"Failed to write tar data: {exec_result.output.decode()}"
+                )
+
+            # Extract tar
+            extract_cmd = f"tar -xf {temp_tar_path} -C {shlex.quote(normalized_dest)}"
+            exec_result = container.exec_run(
+                ["sh", "-c", extract_cmd],
+                user="1000:1000",
+            )
+
+            if exec_result.exit_code != 0:
+                raise DockerAPIError(
+                    f"Failed to extract tar: {exec_result.output.decode()}"
+                )
+
+            # Clean up temp file
+            cleanup_cmd = f"rm {temp_tar_path}"
+            container.exec_run(
+                ["sh", "-c", cleanup_cmd],
+                user="1000:1000",
+            )
+
+            # Count files created (approximate)
+            count_cmd = f"find {shlex.quote(normalized_dest)} -type f | wc -l"
+            count_result = container.exec_run(
+                ["sh", "-c", count_cmd],
+                user="1000:1000",
+            )
+            files_created = int(count_result.output.decode().strip())
+
+            logger.info(
+                f"Imported tar to {normalized_dest} in container {container_id}, "
+                f"{len(tar_data)} bytes, ~{files_created} files"
+            )
+
+            return {
+                "bytes_written": len(tar_data),
+                "files_created": files_created,
+                "dest_path": normalized_dest,
+            }
+
+        except APIError as e:
+            raise DockerAPIError(f"Failed to import tar: {e}", e)
+
+    async def _validate_tar_contents(self, tar_data: bytes, dest_path: str) -> None:
+        """
+        Validate tar contents to ensure they don't escape workspace.
+
+        Args:
+            tar_data: Tar archive data
+            dest_path: Destination path
+
+        Raises:
+            PathSecurityError: If tar contains paths that would escape workspace
+            ValueError: If tar is invalid
+        """
+        try:
+            # Open tar in memory
+            tar_buffer = io.BytesIO(tar_data)
+            with tarfile.open(fileobj=tar_buffer, mode="r:*") as tar:
+                for member in tar.getmembers():
+                    # Check for absolute paths
+                    if member.name.startswith("/"):
+                        raise PathSecurityError(
+                            member.name,
+                            "Tar contains absolute paths"
+                        )
+
+                    # Check for parent directory references
+                    if ".." in member.name.split("/"):
+                        raise PathSecurityError(
+                            member.name,
+                            "Tar contains parent directory references"
+                        )
+
+                    # Compute final path and validate
+                    final_path = posixpath.normpath(
+                        posixpath.join(dest_path, member.name)
+                    )
+                    if not final_path.startswith(self.WORKSPACE_ROOT):
+                        raise PathSecurityError(
+                            member.name,
+                            f"Tar would extract outside workspace: {final_path}"
+                        )
+
+                    # Check for suspicious file types
+                    if member.issym() or member.islnk():
+                        # Symlinks could potentially escape
+                        logger.warning(
+                            f"Tar contains symlink: {member.name}, "
+                            f"extracting anyway"
+                        )
+
+        except tarfile.TarError as e:
+            raise ValueError(f"Invalid tar archive: {e}")
+
+    async def download_file(
+        self, container_id: str, path: str
+    ) -> tuple[bytes, FileInfo]:
+        """
+        Download a single file (convenience wrapper around read).
+
+        Args:
+            container_id: Container ID
+            path: File path
+
+        Returns:
+            Tuple of (file content, file info)
+
+        Raises:
+            ContainerNotFoundError: If container not found
+            FileNotFoundError: If file not found
+            PathSecurityError: If path is invalid
+            DockerAPIError: If Docker operations fail
+        """
+        # This is just an alias for read for now
+        # Could be extended with range request support in the future
+        return await self.read(container_id, path)
