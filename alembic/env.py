@@ -1,5 +1,9 @@
 import asyncio
+
+# Import models for autogenerate
+import sys
 from logging.config import fileConfig
+from pathlib import Path
 
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
@@ -7,17 +11,13 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
-# Import models for autogenerate
-import sys
-from pathlib import Path
-
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from mcp_devbench.models.base import Base
 # Import models for Alembic autogenerate - do not remove even if marked unused
-from mcp_devbench.models.containers import Container  # noqa: F401
 from mcp_devbench.models.attachments import Attachment  # noqa: F401
+from mcp_devbench.models.base import Base
+from mcp_devbench.models.containers import Container  # noqa: F401
 from mcp_devbench.models.execs import Exec  # noqa: F401
 
 # this is the Alembic Config object, which provides

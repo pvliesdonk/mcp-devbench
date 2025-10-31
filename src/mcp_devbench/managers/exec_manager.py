@@ -431,7 +431,7 @@ class ExecManager:
 
             if not exec_entry:
                 raise ExecNotFoundError(exec_id)
-            
+
             # Check if already completed
             if exec_entry.ended_at is not None:
                 logger.info("Exec already completed, skipping cancellation", extra={"exec_id": exec_id})

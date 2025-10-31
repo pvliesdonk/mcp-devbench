@@ -104,3 +104,60 @@ class ExecAlreadyCompletedError(ExecError):
         """
         self.exec_id = exec_id
         super().__init__(f"Exec {exec_id} is already completed")
+
+
+class FilesystemError(MCPDevBenchError):
+    """Base exception for filesystem-related errors."""
+
+    pass
+
+
+class FileNotFoundError(FilesystemError):
+    """Exception raised when a file is not found."""
+
+    def __init__(self, path: str) -> None:
+        """
+        Initialize FileNotFoundError.
+        
+        Args:
+            path: Path that was not found
+        """
+        self.path = path
+        super().__init__(f"File not found: {path}")
+
+
+class PathSecurityError(FilesystemError):
+    """Exception raised when a path violates security constraints."""
+
+    def __init__(self, path: str, reason: str) -> None:
+        """
+        Initialize PathSecurityError.
+        
+        Args:
+            path: Path that violates security
+            reason: Reason for the violation
+        """
+        self.path = path
+        self.reason = reason
+        super().__init__(f"Path security violation for '{path}': {reason}")
+
+
+class FileConflictError(FilesystemError):
+    """Exception raised when file ETag doesn't match."""
+
+    def __init__(self, path: str, expected_etag: str, actual_etag: str) -> None:
+        """
+        Initialize FileConflictError.
+        
+        Args:
+            path: Path with conflict
+            expected_etag: Expected ETag
+            actual_etag: Actual ETag
+        """
+        self.path = path
+        self.expected_etag = expected_etag
+        self.actual_etag = actual_etag
+        super().__init__(
+            f"File conflict at '{path}': expected ETag '{expected_etag}', "
+            f"but found '{actual_etag}'"
+        )
