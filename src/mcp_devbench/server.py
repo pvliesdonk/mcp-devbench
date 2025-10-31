@@ -7,6 +7,7 @@ from fastmcp import FastMCP
 from pydantic import BaseModel
 
 from mcp_devbench.config import get_settings
+from mcp_devbench.models.database import close_db, init_db
 from mcp_devbench.utils import get_logger, setup_logging
 from mcp_devbench.utils.docker_client import close_docker_client, get_docker_client
 
@@ -16,6 +17,7 @@ class HealthCheckResponse(BaseModel):
 
     status: str
     docker_connected: bool
+    database_initialized: bool = True
     version: str = "0.1.0"
 
 
@@ -33,6 +35,14 @@ async def lifespan():
     setup_logging(log_level=settings.log_level, log_format=settings.log_format)
     logger.info("Starting MCP DevBench server", extra={"version": "0.1.0"})
 
+    # Initialize database
+    try:
+        await init_db()
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error("Failed to initialize database", extra={"error": str(e)})
+        raise
+
     # Initialize Docker client
     try:
         docker_client = get_docker_client()
@@ -45,6 +55,7 @@ async def lifespan():
 
     # Cleanup
     logger.info("Shutting down MCP DevBench server")
+    await close_db()
     close_docker_client()
     logger.info("MCP DevBench server stopped")
 
@@ -72,6 +83,7 @@ async def health() -> HealthCheckResponse:
     return HealthCheckResponse(
         status="healthy" if docker_connected else "degraded",
         docker_connected=docker_connected,
+        database_initialized=True,
     )
 
 
