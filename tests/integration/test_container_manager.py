@@ -37,7 +37,7 @@ async def test_create_and_start_container():
             await manager.stop_container(container.id)
             await manager.remove_container(container.id)
         except Exception:
-            pass
+            pass  # Ignore cleanup errors in test teardown
 
 
 @pytest.mark.asyncio
@@ -62,7 +62,7 @@ async def test_create_container_with_duplicate_alias():
         try:
             await manager.remove_container(container1.id, force=True)
         except Exception:
-            pass
+            pass  # Ignore cleanup errors in test teardown
 
 
 @pytest.mark.asyncio
@@ -116,7 +116,7 @@ async def test_get_container_by_id_and_alias():
         try:
             await manager.remove_container(container.id, force=True)
         except Exception:
-            pass
+            pass  # Ignore cleanup errors in test teardown
 
 
 @pytest.mark.asyncio
@@ -154,7 +154,7 @@ async def test_list_containers():
             await manager.remove_container(container1.id, force=True)
             await manager.remove_container(container2.id, force=True)
         except Exception:
-            pass
+            pass  # Ignore cleanup errors in test teardown
 
 
 @pytest.mark.asyncio

@@ -45,7 +45,7 @@ async def lifespan():
 
     # Initialize Docker client
     try:
-        docker_client = get_docker_client()
+        get_docker_client()
         logger.info("Docker client initialized successfully")
     except Exception as e:
         logger.error("Failed to initialize Docker client", extra={"error": str(e)})

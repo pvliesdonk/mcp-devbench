@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from mcp_devbench.models.base import Base
-from mcp_devbench.models.database import get_db_manager, init_db
+from mcp_devbench.models.database import init_db
 from mcp_devbench.utils.docker_client import get_docker_client
 
 
