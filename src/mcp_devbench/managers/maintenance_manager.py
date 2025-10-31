@@ -4,10 +4,8 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 
 from docker import DockerClient
-from docker.errors import APIError
 
 from mcp_devbench.config import get_settings
-from mcp_devbench.managers.container_manager import ContainerManager
 from mcp_devbench.models.database import get_db_manager
 from mcp_devbench.repositories.attachments import AttachmentRepository
 from mcp_devbench.repositories.containers import ContainerRepository
@@ -194,8 +192,6 @@ class MaintenanceManager:
         logger.info("Cleaning up abandoned attachments")
 
         try:
-            cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
-
             async with self.db_manager.get_session() as session:
                 attachment_repo = AttachmentRepository(session)
 
