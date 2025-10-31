@@ -1,5 +1,6 @@
 """Image policy and resolution manager."""
 
+import asyncio
 import json
 from dataclasses import dataclass
 from typing import Dict, Optional
@@ -196,7 +197,7 @@ class ImagePolicyManager:
         """
         try:
             # Check if image exists locally
-            self.docker_client.images.get(image_ref)
+            await asyncio.to_thread(self.docker_client.images.get, image_ref)
             logger.debug("Image already present locally", extra={"image": image_ref})
             return
         except ImageNotFound:
@@ -210,7 +211,9 @@ class ImagePolicyManager:
                 registry = self._extract_registry(image_ref)
                 auth_config = self._auth_config.get(registry)
 
-            self.docker_client.images.pull(image_ref, auth_config=auth_config)
+            await asyncio.to_thread(
+                self.docker_client.images.pull, image_ref, auth_config=auth_config
+            )
             logger.info("Image pulled successfully", extra={"image": image_ref})
 
         except APIError as e:
@@ -235,7 +238,7 @@ class ImagePolicyManager:
             return self._digest_cache[image_ref]
 
         try:
-            image = self.docker_client.images.get(image_ref)
+            image = await asyncio.to_thread(self.docker_client.images.get, image_ref)
             # Get the RepoDigests
             repo_digests = image.attrs.get("RepoDigests", [])
             if repo_digests:

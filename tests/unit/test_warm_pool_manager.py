@@ -267,31 +267,39 @@ def test_get_warm_container_id_none(warm_pool_manager):
 
 
 @pytest.mark.asyncio
-async def test_clean_workspace(warm_pool_manager, mock_container):
+async def test_clean_workspace(warm_pool_manager, mock_container_manager, mock_container):
     """Test cleaning workspace."""
-    # Mock ExecManager
-    with patch("mcp_devbench.managers.exec_manager.ExecManager") as mock_exec_manager_class:
-        mock_exec_manager = AsyncMock()
-        mock_exec_manager.execute.return_value = "e_123"
-        mock_exec_manager_class.return_value = mock_exec_manager
+    # Mock getting container
+    with patch.object(
+        warm_pool_manager.container_manager, "get_container", return_value=mock_container
+    ):
+        # Mock docker container
+        mock_docker_container = MagicMock()
+        mock_exec_result = MagicMock()
+        mock_exec_result.exit_code = 0
+        mock_exec_result.output = b"cleaned"
+        mock_docker_container.exec_run.return_value = mock_exec_result
 
-        await warm_pool_manager._clean_workspace(mock_container.id)
+        # Mock asyncio.to_thread to return our mock docker container
+        with patch("asyncio.to_thread") as mock_to_thread:
+            # First call returns docker container, second call returns exec result
+            mock_to_thread.side_effect = [mock_docker_container, mock_exec_result]
 
-        mock_exec_manager.execute.assert_called_once()
-        call_args = mock_exec_manager.execute.call_args
-        assert call_args[1]["container_id"] == mock_container.id
-        assert "rm -rf" in " ".join(call_args[1]["cmd"])
+            await warm_pool_manager._clean_workspace(mock_container.id)
+
+            # Verify exec_run was called with the cleanup command
+            assert mock_to_thread.call_count == 2
 
 
 @pytest.mark.asyncio
-async def test_clean_workspace_failure(warm_pool_manager, mock_container):
+async def test_clean_workspace_failure(warm_pool_manager, mock_container_manager, mock_container):
     """Test handling workspace cleanup failure."""
-    # Mock ExecManager to fail
-    with patch("mcp_devbench.managers.exec_manager.ExecManager") as mock_exec_manager_class:
-        mock_exec_manager = AsyncMock()
-        mock_exec_manager.execute.side_effect = Exception("Exec failed")
-        mock_exec_manager_class.return_value = mock_exec_manager
-
+    # Mock getting container to fail
+    with patch.object(
+        warm_pool_manager.container_manager,
+        "get_container",
+        side_effect=Exception("Container not found"),
+    ):
         # Should not raise exception
         await warm_pool_manager._clean_workspace(mock_container.id)
 

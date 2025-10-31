@@ -163,26 +163,32 @@ class WarmPoolManager:
             container_id: Container ID
         """
         try:
-            # Use exec to clean workspace
-            from mcp_devbench.managers.exec_manager import ExecManager
-
-            exec_manager = ExecManager()
-
-            # Remove all files in workspace
-            exec_id = await exec_manager.execute(
-                container_id=container_id,
-                cmd=["sh", "-c", "rm -rf /workspace/* /workspace/.*  2>/dev/null || true"],
-                as_root=False,
-                timeout_s=30,
+            # Get the underlying docker container to run a synchronous command
+            container_model = await self.container_manager.get_container(container_id)
+            docker_container = await asyncio.to_thread(
+                self.container_manager.docker_client.containers.get,
+                container_model.docker_id,
             )
 
-            # Wait a bit for cleanup to complete
-            await asyncio.sleep(1)
-
-            logger.debug(
-                "Workspace cleaned",
-                extra={"container_id": container_id, "exec_id": exec_id},
+            # Remove all files in workspace synchronously within a thread.
+            # This is more reliable than fire-and-forget with a sleep.
+            result = await asyncio.to_thread(
+                docker_container.exec_run,
+                cmd="sh -c 'rm -rf /workspace/* /workspace/.* 2>/dev/null || true'",
+                user="1000",
             )
+
+            if result.exit_code != 0:
+                logger.warning(
+                    "Workspace cleanup command failed",
+                    extra={
+                        "container_id": container_id,
+                        "exit_code": result.exit_code,
+                        "output": result.output.decode(errors="ignore"),
+                    },
+                )
+            else:
+                logger.debug("Workspace cleaned", extra={"container_id": container_id})
 
         except Exception as e:
             logger.warning(
@@ -203,7 +209,9 @@ class WarmPoolManager:
         try:
             # Get Docker container
             docker_client = self.container_manager.docker_client
-            docker_container = docker_client.containers.get(container.docker_id)
+            docker_container = await asyncio.to_thread(
+                docker_client.containers.get, container.docker_id
+            )
 
             # Check if running
             status = docker_container.status
@@ -215,7 +223,9 @@ class WarmPoolManager:
                 return False
 
             # Try to execute a simple command
-            result = docker_container.exec_run(["echo", "health_check"], user="1000")
+            result = await asyncio.to_thread(
+                docker_container.exec_run, ["echo", "health_check"], user="1000"
+            )
             if result.exit_code != 0:
                 logger.warning(
                     "Warm container health check failed",
