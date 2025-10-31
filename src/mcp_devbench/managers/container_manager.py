@@ -41,16 +41,16 @@ class ContainerManager:
     ) -> Container:
         """
         Create a new Docker container.
-        
+
         Args:
             image: Docker image to use
             alias: Optional user-friendly alias
             persistent: Whether container is persistent
             ttl_s: Time to live in seconds for transient containers
-            
+
         Returns:
             Created container
-            
+
         Raises:
             ContainerAlreadyExistsError: If alias already exists
             DockerAPIError: If Docker operations fail
@@ -82,7 +82,9 @@ class ContainerManager:
             else:
                 # Docker manages temporary volume with distinct naming
                 volume_name = None
-                volumes = {f"mcpdevbench_transient_{container_id}": {"bind": "/workspace", "mode": "rw"}}
+                volumes = {
+                    f"mcpdevbench_transient_{container_id}": {"bind": "/workspace", "mode": "rw"}
+                }
 
             # Create Docker container
             docker_container: DockerContainer = self.docker_client.containers.create(
@@ -135,10 +137,10 @@ class ContainerManager:
     async def start_container(self, container_id: str) -> None:
         """
         Start a Docker container.
-        
+
         Args:
             container_id: Container ID
-            
+
         Raises:
             ContainerNotFoundError: If container not found
             DockerAPIError: If Docker operations fail
@@ -176,11 +178,11 @@ class ContainerManager:
     async def stop_container(self, container_id: str, timeout: int = 10) -> None:
         """
         Stop a Docker container gracefully.
-        
+
         Args:
             container_id: Container ID
             timeout: Timeout in seconds before force-killing
-            
+
         Raises:
             ContainerNotFoundError: If container not found
             DockerAPIError: If Docker operations fail
@@ -216,11 +218,11 @@ class ContainerManager:
     async def remove_container(self, container_id: str, force: bool = False) -> None:
         """
         Remove a Docker container and clean up resources.
-        
+
         Args:
             container_id: Container ID
             force: Force remove even if running
-            
+
         Raises:
             ContainerNotFoundError: If container not found
             DockerAPIError: If Docker operations fail
@@ -281,13 +283,13 @@ class ContainerManager:
     async def get_container(self, identifier: str) -> Container:
         """
         Get container by ID or alias.
-        
+
         Args:
             identifier: Container ID or alias
-            
+
         Returns:
             Container
-            
+
         Raises:
             ContainerNotFoundError: If container not found
         """
@@ -320,10 +322,10 @@ class ContainerManager:
     async def list_containers(self, include_stopped: bool = False) -> List[Container]:
         """
         List all containers.
-        
+
         Args:
             include_stopped: Include stopped containers
-            
+
         Returns:
             List of containers
         """

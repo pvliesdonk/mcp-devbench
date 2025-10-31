@@ -53,7 +53,7 @@ class CompletionChunk:
 class OutputStreamer:
     """
     Manages streaming output for command executions.
-    
+
     Uses bounded ring buffers to prevent memory exhaustion and supports
     cursor-based polling for ordered delivery.
     """
@@ -71,7 +71,7 @@ class OutputStreamer:
     ):
         """
         Initialize output streamer.
-        
+
         Args:
             max_buffer_size: Maximum total bytes to buffer per exec
             max_chunks: Maximum number of chunks to keep in buffer
@@ -103,7 +103,7 @@ class OutputStreamer:
     async def init_exec(self, exec_id: str) -> None:
         """
         Initialize streaming for a new exec.
-        
+
         Args:
             exec_id: Exec ID
         """
@@ -122,12 +122,12 @@ class OutputStreamer:
     ) -> Optional[int]:
         """
         Add output chunk to the stream.
-        
+
         Args:
             exec_id: Exec ID
             stream: Stream type ("stdout" or "stderr")
             data: Output data
-            
+
         Returns:
             Sequence number of added chunk, or None if buffer is full
         """
@@ -177,12 +177,12 @@ class OutputStreamer:
     ) -> int:
         """
         Mark execution as complete and add completion chunk.
-        
+
         Args:
             exec_id: Exec ID
             exit_code: Exit code from command
             usage: Resource usage information
-            
+
         Returns:
             Sequence number of completion chunk
         """
@@ -221,11 +221,11 @@ class OutputStreamer:
     ) -> tuple[List[Dict], bool]:
         """
         Poll for output chunks after a given sequence number.
-        
+
         Args:
             exec_id: Exec ID
             after_seq: Return chunks after this sequence (None for all)
-            
+
         Returns:
             Tuple of (chunks, is_complete)
         """
@@ -247,10 +247,10 @@ class OutputStreamer:
     async def get_stats(self, exec_id: str) -> Dict:
         """
         Get streaming statistics for an exec.
-        
+
         Args:
             exec_id: Exec ID
-            
+
         Returns:
             Statistics dictionary
         """
@@ -267,7 +267,7 @@ class OutputStreamer:
     async def cleanup(self, exec_id: str) -> None:
         """
         Clean up buffers for a completed exec.
-        
+
         Args:
             exec_id: Exec ID
         """
@@ -289,10 +289,10 @@ class OutputStreamer:
     async def cleanup_old(self, max_age_seconds: int = 3600) -> int:
         """
         Clean up buffers for old completed execs.
-        
+
         Args:
             max_age_seconds: Maximum age in seconds
-            
+
         Returns:
             Number of execs cleaned up
         """

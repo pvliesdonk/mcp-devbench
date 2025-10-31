@@ -43,7 +43,7 @@ def mock_exec_entry():
 @pytest.mark.asyncio
 async def test_execute_creates_exec_entry(db_session, mock_container):
     """Test that execute creates an exec entry in the database."""
-    with patch("mcp_devbench.managers.exec_manager.get_docker_client") as mock_docker, \
+    with patch("mcp_devbench.managers.exec_manager.get_docker_client"), \
          patch("mcp_devbench.managers.exec_manager.get_db_manager") as mock_db_mgr:
 
         # Setup mocks
@@ -92,7 +92,7 @@ async def test_execute_creates_exec_entry(db_session, mock_container):
 @pytest.mark.asyncio
 async def test_execute_with_nonexistent_container(db_session):
     """Test that execute raises error for nonexistent container."""
-    with patch("mcp_devbench.managers.exec_manager.get_docker_client") as mock_docker, \
+    with patch("mcp_devbench.managers.exec_manager.get_docker_client"), \
          patch("mcp_devbench.managers.exec_manager.get_db_manager") as mock_db_mgr:
 
         mock_session_cm = AsyncMock()
@@ -114,7 +114,7 @@ async def test_execute_with_nonexistent_container(db_session):
 @pytest.mark.asyncio
 async def test_execute_with_as_root(db_session):
     """Test execute with as_root flag."""
-    with patch("mcp_devbench.managers.exec_manager.get_docker_client") as mock_docker, \
+    with patch("mcp_devbench.managers.exec_manager.get_docker_client"), \
          patch("mcp_devbench.managers.exec_manager.get_db_manager") as mock_db_mgr:
 
         mock_session_cm = AsyncMock()
@@ -155,7 +155,7 @@ async def test_execute_with_as_root(db_session):
 @pytest.mark.asyncio
 async def test_get_exec_result(db_session):
     """Test getting exec result."""
-    with patch("mcp_devbench.managers.exec_manager.get_docker_client") as mock_docker, \
+    with patch("mcp_devbench.managers.exec_manager.get_docker_client"), \
          patch("mcp_devbench.managers.exec_manager.get_db_manager") as mock_db_mgr:
 
         mock_session_cm = AsyncMock()
@@ -189,7 +189,7 @@ async def test_get_exec_result(db_session):
 @pytest.mark.asyncio
 async def test_get_exec_result_not_found(db_session):
     """Test getting result for nonexistent exec."""
-    with patch("mcp_devbench.managers.exec_manager.get_docker_client") as mock_docker, \
+    with patch("mcp_devbench.managers.exec_manager.get_docker_client"), \
          patch("mcp_devbench.managers.exec_manager.get_db_manager") as mock_db_mgr:
 
         mock_session_cm = AsyncMock()
@@ -208,7 +208,7 @@ async def test_get_exec_result_not_found(db_session):
 @pytest.mark.asyncio
 async def test_get_active_execs(db_session):
     """Test getting active execs for a container."""
-    with patch("mcp_devbench.managers.exec_manager.get_docker_client") as mock_docker, \
+    with patch("mcp_devbench.managers.exec_manager.get_docker_client"), \
          patch("mcp_devbench.managers.exec_manager.get_db_manager") as mock_db_mgr:
 
         mock_session_cm = AsyncMock()
@@ -250,7 +250,7 @@ async def test_get_active_execs(db_session):
 @pytest.mark.asyncio
 async def test_cleanup_old_execs(db_session):
     """Test cleaning up old completed execs."""
-    with patch("mcp_devbench.managers.exec_manager.get_docker_client") as mock_docker, \
+    with patch("mcp_devbench.managers.exec_manager.get_docker_client"), \
          patch("mcp_devbench.managers.exec_manager.get_db_manager") as mock_db_mgr:
 
         mock_session_cm = AsyncMock()
@@ -287,7 +287,7 @@ async def test_cleanup_old_execs(db_session):
 @pytest.mark.asyncio
 async def test_semaphore_limits_concurrent_execs():
     """Test that semaphore limits concurrent executions per container."""
-    with patch("mcp_devbench.managers.exec_manager.get_docker_client") as mock_docker:
+    with patch("mcp_devbench.managers.exec_manager.get_docker_client"):
         manager = ExecManager()
 
         # Get semaphore for a container
@@ -308,7 +308,7 @@ async def test_semaphore_limits_concurrent_execs():
 @pytest.mark.asyncio
 async def test_idempotency_key(db_session):
     """Test idempotency key prevents duplicate execution."""
-    with patch("mcp_devbench.managers.exec_manager.get_docker_client") as mock_docker, \
+    with patch("mcp_devbench.managers.exec_manager.get_docker_client"), \
          patch("mcp_devbench.managers.exec_manager.get_db_manager") as mock_db_mgr:
 
         mock_session_cm = AsyncMock()
@@ -354,7 +354,7 @@ async def test_idempotency_key(db_session):
 @pytest.mark.asyncio
 async def test_cancel_exec(db_session):
     """Test cancelling an execution."""
-    with patch("mcp_devbench.managers.exec_manager.get_docker_client") as mock_docker, \
+    with patch("mcp_devbench.managers.exec_manager.get_docker_client"), \
          patch("mcp_devbench.managers.exec_manager.get_db_manager") as mock_db_mgr:
 
         mock_session_cm = AsyncMock()
@@ -385,7 +385,7 @@ async def test_cancel_exec(db_session):
 @pytest.mark.asyncio
 async def test_cancel_nonexistent_exec(db_session):
     """Test cancelling a nonexistent exec raises error."""
-    with patch("mcp_devbench.managers.exec_manager.get_docker_client") as mock_docker, \
+    with patch("mcp_devbench.managers.exec_manager.get_docker_client"), \
          patch("mcp_devbench.managers.exec_manager.get_db_manager") as mock_db_mgr:
 
         mock_session_cm = AsyncMock()
@@ -404,7 +404,7 @@ async def test_cancel_nonexistent_exec(db_session):
 @pytest.mark.asyncio
 async def test_cleanup_idempotency_keys():
     """Test cleaning up expired idempotency keys."""
-    with patch("mcp_devbench.managers.exec_manager.get_docker_client") as mock_docker:
+    with patch("mcp_devbench.managers.exec_manager.get_docker_client"):
         manager = ExecManager()
 
         # Add keys with different ages

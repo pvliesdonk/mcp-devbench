@@ -9,7 +9,7 @@ from pythonjsonlogger import jsonlogger
 def setup_logging(log_level: str = "INFO", log_format: str = "json") -> None:
     """
     Setup structured logging for the application.
-    
+
     Args:
         log_level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         log_format: Format type (json or text)
@@ -44,10 +44,10 @@ def setup_logging(log_level: str = "INFO", log_format: str = "json") -> None:
 def get_logger(name: str) -> logging.Logger:
     """
     Get a logger instance for the given name.
-    
+
     Args:
         name: Name for the logger (typically __name__)
-        
+
     Returns:
         Logger instance
     """

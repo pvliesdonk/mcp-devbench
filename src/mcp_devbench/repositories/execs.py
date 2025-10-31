@@ -17,7 +17,7 @@ class ExecRepository(BaseRepository[Exec]):
     def __init__(self, session: AsyncSession) -> None:
         """
         Initialize exec repository.
-        
+
         Args:
             session: Database session
         """
@@ -26,10 +26,10 @@ class ExecRepository(BaseRepository[Exec]):
     async def get_by_container(self, container_id: str) -> List[Exec]:
         """
         Get all execs for a container.
-        
+
         Args:
             container_id: Container ID
-            
+
         Returns:
             List of execs
         """
@@ -40,10 +40,10 @@ class ExecRepository(BaseRepository[Exec]):
     async def get_active_by_container(self, container_id: str) -> List[Exec]:
         """
         Get active (not completed) execs for a container.
-        
+
         Args:
             container_id: Container ID
-            
+
         Returns:
             List of active execs
         """
@@ -58,12 +58,12 @@ class ExecRepository(BaseRepository[Exec]):
     ) -> Exec | None:
         """
         Mark exec as completed.
-        
+
         Args:
             exec_id: Exec ID
             exit_code: Exit code from command
             usage: Resource usage information
-            
+
         Returns:
             Updated exec or None if not found
         """
@@ -80,10 +80,10 @@ class ExecRepository(BaseRepository[Exec]):
     async def get_old_completed(self, hours: int = 24) -> List[Exec]:
         """
         Get completed execs older than specified hours.
-        
+
         Args:
             hours: Number of hours
-            
+
         Returns:
             List of old completed execs
         """

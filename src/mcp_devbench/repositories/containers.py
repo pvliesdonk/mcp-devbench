@@ -17,7 +17,7 @@ class ContainerRepository(BaseRepository[Container]):
     def __init__(self, session: AsyncSession) -> None:
         """
         Initialize container repository.
-        
+
         Args:
             session: Database session
         """
@@ -26,10 +26,10 @@ class ContainerRepository(BaseRepository[Container]):
     async def get_by_docker_id(self, docker_id: str) -> Container | None:
         """
         Get container by Docker ID.
-        
+
         Args:
             docker_id: Docker container ID
-            
+
         Returns:
             Container or None if not found
         """
@@ -40,10 +40,10 @@ class ContainerRepository(BaseRepository[Container]):
     async def get_by_alias(self, alias: str) -> Container | None:
         """
         Get container by alias.
-        
+
         Args:
             alias: Container alias
-            
+
         Returns:
             Container or None if not found
         """
@@ -54,10 +54,10 @@ class ContainerRepository(BaseRepository[Container]):
     async def get_by_identifier(self, identifier: str) -> Container | None:
         """
         Get container by ID or alias.
-        
+
         Args:
             identifier: Container ID or alias
-            
+
         Returns:
             Container or None if not found
         """
@@ -74,11 +74,11 @@ class ContainerRepository(BaseRepository[Container]):
     ) -> List[Container]:
         """
         List containers by status.
-        
+
         Args:
             status: Filter by specific status
             include_stopped: Include stopped containers
-            
+
         Returns:
             List of containers
         """
@@ -95,11 +95,11 @@ class ContainerRepository(BaseRepository[Container]):
     async def update_status(self, container_id: str, status: str) -> Container | None:
         """
         Update container status.
-        
+
         Args:
             container_id: Container ID
             status: New status
-            
+
         Returns:
             Updated container or None if not found
         """
@@ -114,10 +114,10 @@ class ContainerRepository(BaseRepository[Container]):
     async def update_last_seen(self, container_id: str) -> Container | None:
         """
         Update container's last_seen timestamp.
-        
+
         Args:
             container_id: Container ID
-            
+
         Returns:
             Updated container or None if not found
         """
@@ -131,10 +131,10 @@ class ContainerRepository(BaseRepository[Container]):
     async def get_transient_old(self, days: int) -> List[Container]:
         """
         Get transient containers older than specified days.
-        
+
         Args:
             days: Number of days
-            
+
         Returns:
             List of old transient containers
         """

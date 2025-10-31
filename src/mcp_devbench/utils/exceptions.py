@@ -19,7 +19,7 @@ class ContainerNotFoundError(ContainerError):
     def __init__(self, identifier: str) -> None:
         """
         Initialize ContainerNotFoundError.
-        
+
         Args:
             identifier: Container ID or alias that was not found
         """
@@ -33,7 +33,7 @@ class ContainerAlreadyExistsError(ContainerError):
     def __init__(self, alias: str) -> None:
         """
         Initialize ContainerAlreadyExistsError.
-        
+
         Args:
             alias: Alias that already exists
         """
@@ -47,7 +47,7 @@ class DockerAPIError(MCPDevBenchError):
     def __init__(self, message: str, original_error: Exception | None = None) -> None:
         """
         Initialize DockerAPIError.
-        
+
         Args:
             message: Error message
             original_error: Original exception from Docker
@@ -68,7 +68,7 @@ class ExecNotFoundError(ExecError):
     def __init__(self, exec_id: str) -> None:
         """
         Initialize ExecNotFoundError.
-        
+
         Args:
             exec_id: Exec ID that was not found
         """
@@ -82,7 +82,7 @@ class ExecTimeoutError(ExecError):
     def __init__(self, exec_id: str, timeout_s: int) -> None:
         """
         Initialize ExecTimeoutError.
-        
+
         Args:
             exec_id: Exec ID that timed out
             timeout_s: Timeout in seconds
@@ -98,7 +98,7 @@ class ExecAlreadyCompletedError(ExecError):
     def __init__(self, exec_id: str) -> None:
         """
         Initialize ExecAlreadyCompletedError.
-        
+
         Args:
             exec_id: Exec ID that is already completed
         """
@@ -118,7 +118,7 @@ class FileNotFoundError(FilesystemError):
     def __init__(self, path: str) -> None:
         """
         Initialize FileNotFoundError.
-        
+
         Args:
             path: Path that was not found
         """
@@ -132,7 +132,7 @@ class PathSecurityError(FilesystemError):
     def __init__(self, path: str, reason: str) -> None:
         """
         Initialize PathSecurityError.
-        
+
         Args:
             path: Path that violates security
             reason: Reason for the violation
@@ -148,7 +148,7 @@ class FileConflictError(FilesystemError):
     def __init__(self, path: str, expected_etag: str, actual_etag: str) -> None:
         """
         Initialize FileConflictError.
-        
+
         Args:
             path: Path with conflict
             expected_etag: Expected ETag
