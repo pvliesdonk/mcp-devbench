@@ -116,7 +116,7 @@ src/mcp_devbench/
 
 ## Project Status
 
-This project has completed **Epic 1: Foundation Layer** and **Epic 2: Command Execution Engine**:
+This project has completed **Epic 1: Foundation Layer**, **Epic 2: Command Execution Engine**, **Epic 3: Filesystem Operations**, and **Epic 4: MCP Protocol Integration**:
 
 ### Epic 1: Foundation Layer ✅
 - [x] Feature 1.1: Project Scaffold & Configuration
@@ -129,25 +129,239 @@ This project has completed **Epic 1: Foundation Layer** and **Epic 2: Command Ex
   - Parallel execution with semaphore-based limiting (4 concurrent per container)
   - Resource tracking and timeout handling
   - Root/non-root user support
-  
+
 - [x] Feature 2.2: Output Streaming with MCP poll-based streaming
   - OutputStreamer with bounded ring buffers (64MB default)
   - Sequence-numbered chunks for ordered delivery
   - Cursor-based polling mechanism
   - Backpressure handling with memory limits
-  
+
 - [x] Feature 2.3: Exec Cancellation & Idempotency
   - Task cancellation support
   - Idempotency keys with 24-hour TTL
   - Automatic cleanup of old executions
   - Cleanup of expired idempotency keys
 
+### Epic 3: Filesystem Operations ✅
+- [x] Feature 3.1: Basic Filesystem Operations
+  - FilesystemManager for workspace operations
+  - Read, write, delete, stat, and list operations
+  - Path security validation (prevents escape from /workspace)
+  - ETag implementation for concurrency control
+  - Binary and text file support
+
+- [x] Feature 3.2: Batch Operations
+  - Atomic batch filesystem operations
+  - Transaction support with rollback
+  - Optimized performance for multiple operations
+  - Conflict detection and resolution
+
+- [x] Feature 3.3: Import/Export Operations
+  - Tar-based bulk import/export
+  - Streaming support for large archives
+  - Glob pattern filtering
+  - Compression support
+
+### Epic 4: MCP Protocol Integration ✅
+- [x] Feature 4.1: MCP Tool Endpoints
+  - `spawn` - Create and start containers with image, alias, and persistence options
+  - `attach` - Attach clients to containers with session tracking
+  - `kill` - Stop and remove containers with graceful/force options
+  - `exec_start` - Start command execution with environment, timeout, and idempotency
+  - `exec_cancel` - Cancel running executions
+  - `exec_poll` - Poll for execution output and status
+  - Typed Pydantic models for all inputs/outputs
+  - Comprehensive error handling and validation
+
+- [x] Feature 4.2: MCP Resource Implementation
+  - `fs_read` - Read files from workspace with metadata
+  - `fs_write` - Write files with ETag-based concurrency control
+  - `fs_delete` - Delete files and directories
+  - `fs_stat` - Get file/directory metadata
+  - `fs_list` - List directory contents
+  - Access control validation
+  - Binary content support
+
+- [x] Feature 4.3: Streaming & Poll Transport
+  - Cursor-based polling for exec output
+  - Sequence-numbered stream messages
+  - Completion status tracking
+  - Connection and backpressure management
+
 ### Current Status
 The project now has:
 - Full container lifecycle management
 - Asynchronous command execution with streaming output
-- 29 unit tests passing (100% success rate)
+- Complete filesystem operations with security controls
+- MCP protocol integration with typed tool and resource endpoints
+- 78 unit and integration tests passing (100% success rate)
 - Comprehensive error handling and resource management
+
+## MCP Tools Reference
+
+### Container Lifecycle Tools
+
+#### `spawn`
+Create and start a new container.
+
+**Input:**
+- `image` (string): Docker image reference
+- `persistent` (boolean, default: false): Whether container persists across restarts
+- `alias` (string, optional): User-friendly container alias
+- `ttl_s` (integer, optional): Time to live for transient containers
+
+**Output:**
+- `container_id` (string): Opaque container ID (c_xxx format)
+- `alias` (string, optional): Container alias if provided
+- `status` (string): Container status
+
+**Example:**
+```json
+{
+  "image": "python:3.11-slim",
+  "persistent": true,
+  "alias": "dev-env"
+}
+```
+
+#### `attach`
+Attach a client to a container for session tracking.
+
+**Input:**
+- `target` (string): Container ID or alias
+- `client_name` (string): Name of the attaching client
+- `session_id` (string): Unique session identifier
+
+**Output:**
+- `container_id` (string): Actual container ID
+- `alias` (string, optional): Container alias
+- `roots` (array): Workspace roots (e.g., ["workspace:c_xxx"])
+
+#### `kill`
+Stop and remove a container.
+
+**Input:**
+- `container_id` (string): Container ID to remove
+- `force` (boolean, default: false): Force removal without graceful stop
+
+**Output:**
+- `status` (string): Operation status
+
+### Execution Tools
+
+#### `exec_start`
+Start command execution in a container.
+
+**Input:**
+- `container_id` (string): Target container ID
+- `cmd` (array): Command and arguments
+- `cwd` (string, default: "/workspace"): Working directory
+- `env` (object, optional): Environment variables
+- `as_root` (boolean, default: false): Execute as root user
+- `timeout_s` (integer, default: 600): Execution timeout
+- `idempotency_key` (string, optional): Key to prevent duplicate execution
+
+**Output:**
+- `exec_id` (string): Execution ID (e_xxx format)
+- `status` (string): Initial status
+
+**Example:**
+```json
+{
+  "container_id": "c_123...",
+  "cmd": ["python", "script.py"],
+  "env": {"DEBUG": "1"},
+  "timeout_s": 300
+}
+```
+
+#### `exec_cancel`
+Cancel a running execution.
+
+**Input:**
+- `exec_id` (string): Execution ID to cancel
+
+**Output:**
+- `status` (string): Cancellation status
+- `exec_id` (string): Cancelled execution ID
+
+#### `exec_poll`
+Poll for execution output and completion status.
+
+**Input:**
+- `exec_id` (string): Execution ID
+- `after_seq` (integer, default: 0): Return messages after this sequence number
+
+**Output:**
+- `messages` (array): Stream messages with sequence numbers
+- `complete` (boolean): Whether execution is complete
+
+### Filesystem Tools
+
+#### `fs_read`
+Read a file from the container workspace.
+
+**Input:**
+- `container_id` (string): Container ID
+- `path` (string): File path within /workspace
+
+**Output:**
+- `content` (bytes): File content
+- `etag` (string): Entity tag for concurrency control
+- `size` (integer): File size in bytes
+- `mime_type` (string, optional): MIME type
+
+#### `fs_write`
+Write a file to the container workspace.
+
+**Input:**
+- `container_id` (string): Container ID
+- `path` (string): File path within /workspace
+- `content` (bytes): File content
+- `if_match_etag` (string, optional): Required ETag for conditional write
+
+**Output:**
+- `path` (string): Written file path
+- `etag` (string): New entity tag
+- `size` (integer): File size
+
+#### `fs_delete`
+Delete a file or directory.
+
+**Input:**
+- `container_id` (string): Container ID
+- `path` (string): Path to delete
+
+**Output:**
+- `status` (string): Deletion status
+- `path` (string): Deleted path
+
+#### `fs_stat`
+Get file or directory metadata.
+
+**Input:**
+- `container_id` (string): Container ID
+- `path` (string): File/directory path
+
+**Output:**
+- `path` (string): File path
+- `size` (integer): Size in bytes
+- `is_dir` (boolean): Whether it's a directory
+- `permissions` (string): File permissions
+- `mtime` (datetime): Last modification time
+- `etag` (string): Entity tag
+- `mime_type` (string, optional): MIME type if file
+
+#### `fs_list`
+List directory contents.
+
+**Input:**
+- `container_id` (string): Container ID
+- `path` (string, default: "/workspace"): Directory path
+
+**Output:**
+- `path` (string): Listed directory
+- `entries` (array): File/directory entries with metadata
 
 See [mcp-devbench-work-breakdown.md](mcp-devbench-work-breakdown.md) for the complete implementation roadmap.
 

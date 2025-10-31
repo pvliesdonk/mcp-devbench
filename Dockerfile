@@ -1,10 +1,7 @@
-# Multi-stage Dockerfile for MCP DevBench using uv for fast builds
+# Multi-stage Dockerfile for MCP DevBench using official UV image
 
-# Build stage
-FROM python:3.11-slim AS builder
-
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# Build stage using official UV image
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim AS builder
 
 # Set working directory
 WORKDIR /app
@@ -18,7 +15,7 @@ COPY src ./src
 RUN uv sync --frozen --no-dev
 
 # Runtime stage
-FROM python:3.11-slim
+FROM python:3.11-slim-bookworm
 
 # Install Docker CLI (for docker operations)
 RUN apt-get update && \
