@@ -70,7 +70,10 @@ class ContainerRepository(BaseRepository[Container]):
         return await self.get_by_alias(identifier)
 
     async def list_by_status(
-        self, status: str | None = None, include_stopped: bool = False
+        self,
+        status: str | None = None,
+        include_stopped: bool = False,
+        persistent: bool | None = None,
     ) -> List[Container]:
         """
         List containers by status.
@@ -78,6 +81,7 @@ class ContainerRepository(BaseRepository[Container]):
         Args:
             status: Filter by specific status
             include_stopped: Include stopped containers
+            persistent: Filter by persistent flag (None for all)
 
         Returns:
             List of containers
@@ -89,6 +93,20 @@ class ContainerRepository(BaseRepository[Container]):
         elif not include_stopped:
             stmt = stmt.where(Container.status == "running")
 
+        if persistent is not None:
+            stmt = stmt.where(Container.persistent == persistent)
+
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def list_all(self) -> List[Container]:
+        """
+        List all containers.
+
+        Returns:
+            List of all containers
+        """
+        stmt = select(Container)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 

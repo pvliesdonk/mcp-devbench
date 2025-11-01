@@ -15,6 +15,11 @@ MCP DevBench is a Docker container management server that implements the Model C
 - **Configuration Management**: Environment-based configuration with Pydantic Settings
 - **Structured Logging**: JSON-formatted logging for production observability
 - **Docker Integration**: Secure Docker daemon communication with connection pooling
+- **Audit Logging**: Complete audit trail for all operations with sensitive data redaction
+- **Prometheus Metrics**: Built-in metrics collection for monitoring and alerting
+- **Admin Tools**: System health status, container/exec listing, garbage collection, and reconciliation
+- **Graceful Shutdown**: Drains active operations before shutdown
+- **Automatic Recovery**: Reconciles Docker state with database on startup
 
 ## Requirements
 
@@ -228,7 +233,7 @@ src/mcp_devbench/
 
 ## Project Status
 
-This project has completed **Epic 1: Foundation Layer**, **Epic 2: Command Execution Engine**, **Epic 3: Filesystem Operations**, **Epic 4: MCP Protocol Integration**, and **Epic 5: Image & Security Management**:
+This project has completed **Epic 1: Foundation Layer**, **Epic 2: Command Execution Engine**, **Epic 3: Filesystem Operations**, **Epic 4: MCP Protocol Integration**, **Epic 5: Image & Security Management**, and **Epic 6: State Management & Recovery**:
 
 ### Epic 1: Foundation Layer ✅
 - [x] Feature 1.1: Project Scaffold & Configuration
@@ -324,6 +329,55 @@ This project has completed **Epic 1: Foundation Layer**, **Epic 2: Command Execu
   - Workspace cleanup between uses
   - Configurable via MCP_WARM_POOL_ENABLED
 
+### Epic 6: State Management & Recovery ✅
+- [x] Feature 6.1: Graceful Shutdown
+  - ShutdownCoordinator for handling SIGTERM/SIGINT
+  - Drains active operations with configurable grace period (MCP_DRAIN_GRACE_S)
+  - Stops transient containers while preserving persistent ones
+  - Ensures state is flushed to disk
+  - Integrated into server lifespan
+
+- [x] Feature 6.2: Boot Recovery & Reconciliation
+  - ReconciliationManager for container discovery and adoption
+  - Discovers containers with com.mcp.devbench label on startup
+  - Adopts running containers not in database
+  - Cleans up orphaned transient containers based on MCP_TRANSIENT_GC_DAYS
+  - `reconcile` tool for manual reconciliation
+  - Handles Docker daemon restarts gracefully
+
+- [x] Feature 6.3: Background Maintenance
+  - MaintenanceManager for periodic tasks
+  - Hourly garbage collection of old transients
+  - Cleanup of completed execs older than 24h
+  - Periodic state sync with Docker
+  - Database vacuuming for optimization
+  - Health monitoring and metrics collection
+
+### Epic 7: Observability & Operations ✅
+- [x] Feature 7.1: Structured Audit Logging
+  - AuditLogger with JSON structured logging for all operations
+  - Complete audit trail for container, exec, filesystem, security, and transfer events
+  - Automatic sensitive data redaction (passwords, tokens, keys, secrets)
+  - ISO8601 timestamps and correlation IDs
+  - Configurable detail level
+  - 17 unit tests covering audit functionality
+
+- [x] Feature 7.2: Metrics & Monitoring
+  - Prometheus metrics collection via MetricsCollector
+  - Counter metrics: container_spawns_total, exec_total, fs_operations_total
+  - Histogram metrics: exec_duration_seconds, output_bytes
+  - Gauge metrics: active_containers, active_attachments, memory_usage_bytes
+  - `metrics` tool to expose Prometheus-formatted metrics
+  - 14 unit tests covering metrics collection
+
+- [x] Feature 7.3: Debug & Admin Tools
+  - `system_status` tool for overall system health
+  - `list_containers` tool for detailed container information
+  - `list_execs` tool for active execution listing
+  - `garbage_collect` tool for manual cleanup
+  - `reconcile` tool with audit logging (from Epic 6)
+  - Docker connectivity and database status monitoring
+
 ### Current Status
 The project now has:
 - Full container lifecycle management with image policy enforcement
@@ -333,7 +387,13 @@ The project now has:
 - Image allow-list validation and resolution with digest pinning
 - Comprehensive security hardening (capability dropping, resource limits, audit logging)
 - Warm container pool for fast provisioning (<1s attach time)
-- 150 unit and integration tests passing (100% success rate)
+- Graceful shutdown with operation draining
+- Boot recovery and automatic reconciliation
+- Background maintenance and health monitoring
+- **Complete audit logging for all operations with sensitive data redaction**
+- **Prometheus metrics collection and exposure**
+- **Admin tools for system status, container/exec listing, and manual operations**
+- 201 unit and integration tests passing (100% success rate)
 - Comprehensive error handling and resource management
 
 ## MCP Tools Reference
@@ -501,6 +561,124 @@ List directory contents.
 **Output:**
 - `path` (string): Listed directory
 - `entries` (array): File/directory entries with metadata
+
+### Maintenance Tools
+
+#### `reconcile`
+Run container reconciliation to sync Docker state with database.
+
+This tool performs:
+- Discovery of containers with com.mcp.devbench label
+- Adoption of running containers not in database
+- Cleanup of stopped containers
+- Removal of orphaned transient containers
+- Cleanup of incomplete exec entries
+
+**Input:** None
+
+**Output:**
+- `discovered` (integer): Containers found with MCP label
+- `adopted` (integer): Containers added to database
+- `cleaned_up` (integer): Missing containers marked stopped
+- `orphaned` (integer): Old transients removed
+- `errors` (integer): Errors encountered
+
+**Example:**
+```json
+{
+  "discovered": 5,
+  "adopted": 1,
+  "cleaned_up": 2,
+  "orphaned": 1,
+  "errors": 0
+}
+```
+
+### Observability & Admin Tools
+
+#### `metrics`
+Get Prometheus metrics for monitoring.
+
+Returns current metrics including:
+- Container spawn counts by image
+- Execution counts and durations
+- Filesystem operation counts
+- Active container and attachment gauges
+- Memory usage by container
+
+**Input:** None
+
+**Output:**
+- `metrics` (string): Prometheus-formatted metrics
+
+**Example metrics output:**
+```
+# HELP mcp_devbench_container_spawns_total Total number of container spawns
+# TYPE mcp_devbench_container_spawns_total counter
+mcp_devbench_container_spawns_total{image="python:3.11"} 5.0
+# HELP mcp_devbench_exec_total Total number of command executions
+# TYPE mcp_devbench_exec_total counter
+mcp_devbench_exec_total{container_id="c_123",status="success"} 10.0
+# HELP mcp_devbench_active_containers Number of active containers
+# TYPE mcp_devbench_active_containers gauge
+mcp_devbench_active_containers 3.0
+```
+
+#### `system_status`
+Get system health and status information.
+
+**Input:** None
+
+**Output:**
+- `status` (string): Overall system status (healthy, degraded)
+- `docker_connected` (boolean): Docker daemon connectivity
+- `database_initialized` (boolean): Database initialization status
+- `active_containers` (integer): Number of active containers
+- `active_attachments` (integer): Number of active client attachments
+- `version` (string): Server version
+
+**Example:**
+```json
+{
+  "status": "healthy",
+  "docker_connected": true,
+  "database_initialized": true,
+  "active_containers": 3,
+  "active_attachments": 2,
+  "version": "0.1.0"
+}
+```
+
+#### `garbage_collect`
+Trigger manual garbage collection.
+
+Cleans up:
+- Orphaned transient containers
+- Old completed exec records (>24h)
+- Abandoned attachments
+
+**Input:** None
+
+**Output:**
+- `containers_removed` (integer): Number of containers removed
+- `execs_cleaned` (integer): Number of exec records cleaned
+- `attachments_cleaned` (integer): Number of attachments cleaned
+
+#### `list_containers`
+List all containers with detailed information.
+
+**Input:** None
+
+**Output:**
+- `containers` (array): List of container objects with id, docker_id, alias, image, status, persistent, created_at, last_seen
+
+#### `list_execs`
+List active command executions.
+
+**Input:** None
+
+**Output:**
+- `execs` (array): List of execution objects with exec_id, container_id, cmd, as_root, started_at, status
 
 See [mcp-devbench-work-breakdown.md](mcp-devbench-work-breakdown.md) for the complete implementation roadmap.
 
