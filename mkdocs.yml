@@ -1,0 +1,98 @@
+site_name: MCP DevBench
+site_description: Docker container management server with MCP protocol
+site_url: https://pvliesdonk.github.io/mcp-devbench
+repo_url: https://github.com/pvliesdonk/mcp-devbench
+repo_name: pvliesdonk/mcp-devbench
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+  - awesome-pages
+  - git-revision-date-localized:
+      enable_creation_date: true
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - tables
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quickstart.md
+    - Configuration: getting-started/configuration.md
+  - User Guide:
+    - Container Management: guide/containers.md
+    - Command Execution: guide/execution.md
+    - Filesystem Operations: guide/filesystem.md
+    - Security: guide/security.md
+    - Monitoring: guide/monitoring.md
+  - API Reference:
+    - Overview: api/overview.md
+    - MCP Tools: api/tools.md
+    - Authentication: api/authentication.md
+    - Error Handling: api/errors.md
+  - Operations:
+    - Deployment: operations/deployment.md
+    - Monitoring: operations/monitoring.md
+    - Troubleshooting: operations/troubleshooting.md
+  - Development:
+    - Contributing: development/contributing.md
+    - Project Style: development/project-style.md
+    - Architecture: development/architecture.md
+    - Testing: development/testing.md
+    - Release Process: development/releases.md
+  - About:
+    - Changelog: about/changelog.md
+    - License: about/license.md
+    - Roadmap: about/roadmap.md
