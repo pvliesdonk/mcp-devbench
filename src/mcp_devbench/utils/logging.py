@@ -27,7 +27,7 @@ def setup_logging(log_level: str = "INFO", log_format: str = "json") -> None:
 
     # Set formatter based on format type
     if log_format.lower() == "json":
-        formatter = jsonlogger.JsonFormatter(
+        formatter = jsonlogger.JsonFormatter(  # type: ignore[reportPrivateImportUsage]
             "%(timestamp)s %(level)s %(name)s %(message)s",
             rename_fields={"levelname": "level", "asctime": "timestamp"},
             timestamp=True,

@@ -1,6 +1,6 @@
 """Repository for Exec model operations."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 
 from sqlalchemy import select
@@ -67,7 +67,7 @@ class ExecRepository(BaseRepository[Exec]):
         """
         exec_entry = await self.get(exec_id)
         if exec_entry and exec_entry.ended_at is None:
-            exec_entry.ended_at = datetime.utcnow()
+            exec_entry.ended_at = datetime.now(timezone.utc)
             exec_entry.exit_code = exit_code
             if usage:
                 exec_entry.usage = usage

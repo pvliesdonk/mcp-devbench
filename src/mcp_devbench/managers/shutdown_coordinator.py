@@ -108,16 +108,12 @@ class ShutdownCoordinator:
                 repo = ContainerRepository(session)
 
                 # Get all running transient containers
-                transients = await repo.list_by_status(
-                    status="running", persistent=False
-                )
+                transients = await repo.list_by_status(status="running", persistent=False)
 
                 stopped_count = 0
                 for container in transients:
                     try:
-                        await container_manager.stop_container(
-                            container.id, timeout=10
-                        )
+                        await container_manager.stop_container(container.id, timeout=10)
                         stopped_count += 1
                         logger.info(
                             "Stopped transient container",

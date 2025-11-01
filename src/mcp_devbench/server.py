@@ -205,6 +205,7 @@ async def spawn(input_data: SpawnInput) -> SpawnOutput:
             alias=input_data.alias,
             persistent=input_data.persistent,
             ttl_s=input_data.ttl_s,
+            idempotency_key=input_data.idempotency_key,
         )
 
         # Start container

@@ -1,6 +1,6 @@
 """Container lifecycle manager for Docker operations."""
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import List
 from uuid import uuid4
 
@@ -42,6 +42,7 @@ class ContainerManager:
         alias: str | None = None,
         persistent: bool = False,
         ttl_s: int | None = None,
+        idempotency_key: str | None = None,
     ) -> Container:
         """
         Create a new Docker container.
@@ -51,6 +52,7 @@ class ContainerManager:
             alias: Optional user-friendly alias
             persistent: Whether container is persistent
             ttl_s: Time to live in seconds for transient containers
+            idempotency_key: Optional idempotency key to prevent duplicate creation
 
         Returns:
             Created container
@@ -60,6 +62,32 @@ class ContainerManager:
             DockerAPIError: If Docker operations fail
             ImagePolicyError: If image is not allowed
         """
+        # Check for existing container with same idempotency key
+        if idempotency_key:
+            async with self.db_manager.get_session() as session:
+                repo = ContainerRepository(session)
+                existing = await repo.get_by_idempotency_key(idempotency_key)
+
+                if existing:
+                    # Check if key is still valid (within 24 hours)
+                    if existing.idempotency_key_created_at:
+                        # Make sure the stored datetime is timezone-aware
+                        key_created_at = existing.idempotency_key_created_at
+                        if key_created_at.tzinfo is None:
+                            key_created_at = key_created_at.replace(tzinfo=timezone.utc)
+
+                        age = datetime.now(timezone.utc) - key_created_at
+                        if age < timedelta(hours=24):
+                            logger.info(
+                                "Returning existing container for idempotency key",
+                                extra={
+                                    "idempotency_key": idempotency_key,
+                                    "container_id": existing.id,
+                                    "age_seconds": age.total_seconds(),
+                                },
+                            )
+                            return existing
+
         # Validate and resolve image
         resolved = await self.image_policy.resolve_image(image)
         actual_image = resolved.resolved_ref
@@ -122,7 +150,7 @@ class ContainerManager:
             )
 
             # Save to database
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             container = Container(
                 id=container_id,
                 docker_id=docker_container.id,
@@ -135,6 +163,8 @@ class ContainerManager:
                 ttl_s=ttl_s,
                 volume_name=volume_name,
                 status="stopped",  # Container is created but not started
+                idempotency_key=idempotency_key,
+                idempotency_key_created_at=now if idempotency_key else None,
             )
 
             async with self.db_manager.get_session() as session:

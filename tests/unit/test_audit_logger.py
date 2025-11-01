@@ -211,9 +211,7 @@ def test_log_system_startup(mock_logger):
     logger = AuditLogger()
     logger._logger = mock_logger
 
-    logger.log_event(
-        event_type=AuditEventType.SYSTEM_STARTUP, details={"version": "0.1.0"}
-    )
+    logger.log_event(event_type=AuditEventType.SYSTEM_STARTUP, details={"version": "0.1.0"})
 
     call_args = mock_logger.info.call_args
     extra = call_args[1]["extra"]

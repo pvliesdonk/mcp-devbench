@@ -30,6 +30,10 @@ jobs:
     - name: Lint with ruff
       run: |
         uv run ruff check .
+
+    - name: Type check with pyright
+      run: |
+        uv run pyright src/
     
     - name: Run tests with coverage
       run: |

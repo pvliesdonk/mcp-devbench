@@ -56,6 +56,56 @@ class DockerAPIError(MCPDevBenchError):
         super().__init__(message)
 
 
+class ImageNotFoundError(DockerAPIError):
+    """Exception raised when a Docker image is not found."""
+
+    def __init__(self, image: str, original_error: Exception | None = None) -> None:
+        """
+        Initialize ImageNotFoundError.
+
+        Args:
+            image: Image reference that was not found
+            original_error: Original exception from Docker
+        """
+        self.image = image
+        super().__init__(f"Docker image not found: {image}", original_error)
+
+
+class ContainerExitedError(DockerAPIError):
+    """Exception raised when a container exits unexpectedly."""
+
+    def __init__(
+        self, container_id: str, exit_code: int, original_error: Exception | None = None
+    ) -> None:
+        """
+        Initialize ContainerExitedError.
+
+        Args:
+            container_id: Container ID that exited
+            exit_code: Exit code of the container
+            original_error: Original exception from Docker
+        """
+        self.container_id = container_id
+        self.exit_code = exit_code
+        super().__init__(
+            f"Container {container_id} exited unexpectedly with code {exit_code}",
+            original_error,
+        )
+
+
+class DockerDaemonUnreachableError(DockerAPIError):
+    """Exception raised when Docker daemon is unreachable."""
+
+    def __init__(self, message: str = "Docker daemon is unreachable") -> None:
+        """
+        Initialize DockerDaemonUnreachableError.
+
+        Args:
+            message: Error message
+        """
+        super().__init__(message)
+
+
 class ExecError(MCPDevBenchError):
     """Base exception for exec-related errors."""
 

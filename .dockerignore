@@ -1,0 +1,67 @@
+# Git
+.git
+.github
+.gitignore
+
+# Virtual environments
+.venv
+venv/
+ENV/
+env/
+
+# Python cache
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Testing
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.tox/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+*.cover
+.hypothesis/
+
+# Build artifacts
+dist/
+build/
+*.egg-info
+*.egg
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# Environment files
+.env
+.env.*
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Tests
+tests/
+
+# Database
+*.db
+*.sqlite3

@@ -27,6 +27,8 @@ dev = [
     "ruff>=0.1.0",
     "twine>=5.0.0",
     "python-semantic-release>=9.0.0",
+    "pyright>=1.1.389",
+    "pre-commit>=4.0.0",
 ]
 
 [project.scripts]
@@ -108,3 +110,18 @@ prerelease = false
 allowed_tags = ["chore", "ci", "docs", "feat", "fix", "perf", "style", "refactor", "test"]
 minor_tags = ["feat"]
 patch_tags = ["fix", "perf"]
+
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+reportMissingTypeStubs = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+reportUnknownArgumentType = false
+reportPrivateUsage = false
+reportIncompatibleMethodOverride = false
+reportOptionalMemberAccess = false
+reportAttributeAccessIssue = false
+reportArgumentType = "warning"
+reportCallIssue = "warning"
+reportAssignmentType = "warning"

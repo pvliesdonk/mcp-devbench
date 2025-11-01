@@ -66,6 +66,7 @@ async def test_spawn_tool():
             alias="test-env",
             persistent=True,
             ttl_s=None,
+            idempotency_key=None,
         )
         mock_manager.start_container.assert_called_once_with("c_test123")
 
