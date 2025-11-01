@@ -15,6 +15,10 @@ class SpawnInput(BaseModel):
     persistent: bool = Field(default=False, description="Whether container is persistent")
     alias: Optional[str] = Field(None, description="Optional user-friendly alias")
     ttl_s: Optional[int] = Field(None, description="Time to live in seconds for transient")
+    idempotency_key: Optional[str] = Field(
+        None,
+        description="Idempotency key to prevent duplicate container creation on retry",
+    )
 
 
 class SpawnOutput(BaseModel):

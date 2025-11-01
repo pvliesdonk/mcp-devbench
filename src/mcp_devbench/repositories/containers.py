@@ -51,6 +51,20 @@ class ContainerRepository(BaseRepository[Container]):
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_by_idempotency_key(self, idempotency_key: str) -> Container | None:
+        """
+        Get container by idempotency key.
+
+        Args:
+            idempotency_key: Idempotency key
+
+        Returns:
+            Container or None if not found
+        """
+        stmt = select(Container).where(Container.idempotency_key == idempotency_key)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def get_by_identifier(self, identifier: str) -> Container | None:
         """
         Get container by ID or alias.
