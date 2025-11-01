@@ -41,7 +41,6 @@ from mcp_devbench.mcp_tools import (
     KillInput,
     KillOutput,
     MetricsOutput,
-    ReconcileInput,
     ReconcileOutput,
     SpawnInput,
     SpawnOutput,
@@ -55,13 +54,13 @@ from mcp_devbench.repositories.execs import ExecRepository
 from mcp_devbench.utils import get_logger, setup_logging
 from mcp_devbench.utils.audit_logger import AuditEventType, get_audit_logger
 from mcp_devbench.utils.docker_client import close_docker_client, get_docker_client
-from mcp_devbench.utils.metrics_collector import get_metrics_collector
 from mcp_devbench.utils.exceptions import (
     ContainerNotFoundError,
     ExecNotFoundError,
     FileConflictError,
     PathSecurityError,
 )
+from mcp_devbench.utils.metrics_collector import get_metrics_collector
 
 
 class HealthCheckResponse(BaseModel):
@@ -751,16 +750,6 @@ async def fs_list(input_data: FileListInput) -> FileListOutput:
 # ========== Feature 6.2: Reconciliation Tool ==========
 
 
-class ReconcileOutput(BaseModel):
-    """Output model for reconcile operation."""
-
-    discovered: int
-    adopted: int
-    cleaned_up: int
-    orphaned: int
-    errors: int
-
-
 @mcp.tool()
 async def reconcile() -> ReconcileOutput:
     """
@@ -847,15 +836,16 @@ async def system_status() -> SystemStatusOutput:
         # Get database manager to check initialization
         db_manager = get_db_manager()
 
-        # Count active containers and attachments
-        container_repo = ContainerRepository(db_manager.session)
-        attachment_repo = AttachmentRepository(db_manager.session)
+        # Count active containers and attachments using a managed session
+        async with db_manager.get_session() as session:
+            container_repo = ContainerRepository(session)
+            attachment_repo = AttachmentRepository(session)
 
-        containers = await container_repo.list_all()
-        active_containers = len([c for c in containers if c.status == "running"])
+            containers = await container_repo.list_all()
+            active_containers = len([c for c in containers if c.status == "running"])
 
-        attachments = await attachment_repo.list_active()
-        active_attachments = len(attachments)
+            attachments = await attachment_repo.list_active()
+            active_attachments = len(attachments)
 
         # Determine overall status
         status = "healthy" if docker_connected else "degraded"
@@ -894,30 +884,21 @@ async def garbage_collect() -> GarbageCollectOutput:
     try:
         # Get maintenance manager and run GC
         maintenance_manager = get_maintenance_manager()
-        
-        # Run the garbage collection task
-        containers_removed = 0
-        execs_cleaned = 0
-        attachments_cleaned = 0
-
-        # Clean old execs
-        db_manager = get_db_manager()
-        exec_repo = ExecRepository(db_manager.session)
-        execs_cleaned = await exec_repo.cleanup_old(hours=24)
+        stats = await maintenance_manager.run_maintenance()
 
         logger.info(
             "Garbage collection completed",
             extra={
-                "containers_removed": containers_removed,
-                "execs_cleaned": execs_cleaned,
-                "attachments_cleaned": attachments_cleaned,
+                "containers_removed": stats.get("orphaned_transients", 0),
+                "execs_cleaned": stats.get("cleaned_execs", 0),
+                "attachments_cleaned": stats.get("abandoned_attachments", 0),
             },
         )
 
         return GarbageCollectOutput(
-            containers_removed=containers_removed,
-            execs_cleaned=execs_cleaned,
-            attachments_cleaned=attachments_cleaned,
+            containers_removed=stats.get("orphaned_transients", 0),
+            execs_cleaned=stats.get("cleaned_execs", 0),
+            attachments_cleaned=stats.get("abandoned_attachments", 0),
         )
 
     except Exception as e:
@@ -974,7 +955,6 @@ async def list_execs() -> ExecListOutput:
 
     try:
         db_manager = get_db_manager()
-        exec_repo = ExecRepository(db_manager.session)
 
         # Get all execs (we could filter for active ones)
         from sqlalchemy import select

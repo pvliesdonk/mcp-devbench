@@ -2,7 +2,6 @@
 
 import asyncio
 import signal
-from datetime import datetime, timezone
 from typing import Callable
 
 from mcp_devbench.config import get_settings

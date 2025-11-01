@@ -1,7 +1,5 @@
 """Unit tests for audit logger."""
 
-import json
-from io import StringIO
 from unittest.mock import MagicMock, patch
 
 import pytest

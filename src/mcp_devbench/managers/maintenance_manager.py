@@ -272,9 +272,11 @@ class MaintenanceManager:
         logger.info("Vacuuming database")
 
         try:
+            from sqlalchemy import text
+
             async with self.db_manager.get_session() as session:
                 # Execute VACUUM command
-                await session.execute("VACUUM")
+                await session.execute(text("VACUUM"))
                 logger.info("Database vacuumed successfully")
 
         except Exception as e:

@@ -15,6 +15,7 @@ def metrics_collector():
         try:
             REGISTRY.unregister(collector)
         except Exception:
+            # Ignore errors if the collector is not registered; this is expected during test setup.
             pass
     return MetricsCollector()
 
