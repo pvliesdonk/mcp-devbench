@@ -14,7 +14,7 @@ This roadmap consolidates recommendations from comprehensive code analysis and d
 
 1. **Comprehensive Documentation** - API docs, mkdocs website, runbooks, and contributor guides
 2. **Harden Production Readiness** - Comprehensive testing, security scanning, and operational tooling
-3. **Improve Performance** - Native async I/O with aio-docker, caching, and resource management
+3. **Improve Performance** - Native async I/O with aiodocker, caching, and resource management
 4. **Enable Scale** - Multi-instance deployment, PostgreSQL support, distributed locking
 5. **Architecture Flexibility** - Abstract container runtime for Docker, Podman, Kubernetes support
 6. **Enterprise Features** - Multi-tenancy, advanced security policies, and observability
