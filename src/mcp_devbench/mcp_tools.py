@@ -198,3 +198,59 @@ class ExecPollOutput(BaseModel):
 
     messages: List[ExecStreamMessage] = Field(..., description="Stream messages")
     complete: bool = Field(..., description="Whether execution is complete")
+
+
+# Admin and Monitoring Tools for Feature 7.2 and 7.3
+
+
+class MetricsOutput(BaseModel):
+    """Output model for metrics tool."""
+
+    metrics: str = Field(..., description="Prometheus metrics in text format")
+
+
+class SystemStatusOutput(BaseModel):
+    """Output model for system status tool."""
+
+    status: str = Field(..., description="Overall system status")
+    docker_connected: bool = Field(..., description="Docker daemon connectivity")
+    database_initialized: bool = Field(..., description="Database initialization status")
+    active_containers: int = Field(..., description="Number of active containers")
+    active_attachments: int = Field(..., description="Number of active attachments")
+    version: str = Field(..., description="Server version")
+
+
+class ReconcileInput(BaseModel):
+    """Input model for reconcile tool."""
+
+    force: bool = Field(default=False, description="Force reconciliation even if recently run")
+
+
+class ReconcileOutput(BaseModel):
+    """Output model for reconcile tool."""
+
+    discovered: int = Field(..., description="Number of containers discovered")
+    adopted: int = Field(..., description="Number of containers adopted into state")
+    cleaned_up: int = Field(..., description="Number of containers cleaned up")
+    orphaned: int = Field(..., description="Number of orphaned containers found")
+    errors: int = Field(..., description="Number of errors encountered")
+
+
+class GarbageCollectOutput(BaseModel):
+    """Output model for garbage collection tool."""
+
+    containers_removed: int = Field(..., description="Number of containers removed")
+    execs_cleaned: int = Field(..., description="Number of exec records cleaned")
+    attachments_cleaned: int = Field(..., description="Number of attachments cleaned")
+
+
+class ContainerListOutput(BaseModel):
+    """Output model for container list tool."""
+
+    containers: List[Dict[str, Any]] = Field(..., description="List of container information")
+
+
+class ExecListOutput(BaseModel):
+    """Output model for exec list tool."""
+
+    execs: List[Dict[str, Any]] = Field(..., description="List of active executions")

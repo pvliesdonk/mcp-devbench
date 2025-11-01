@@ -20,7 +20,9 @@ from mcp_devbench.mcp_tools import (
     AttachOutput,
     CancelInput,
     CancelOutput,
+    ContainerListOutput,
     ExecInput,
+    ExecListOutput,
     ExecOutput,
     ExecPollInput,
     ExecPollOutput,
@@ -35,16 +37,21 @@ from mcp_devbench.mcp_tools import (
     FileStatOutput,
     FileWriteInput,
     FileWriteOutput,
+    GarbageCollectOutput,
     KillInput,
     KillOutput,
+    MetricsOutput,
+    ReconcileOutput,
     SpawnInput,
     SpawnOutput,
+    SystemStatusOutput,
 )
 from mcp_devbench.models.attachments import Attachment
 from mcp_devbench.models.database import close_db, get_db_manager, init_db
 from mcp_devbench.repositories.attachments import AttachmentRepository
 from mcp_devbench.repositories.containers import ContainerRepository
 from mcp_devbench.utils import get_logger, setup_logging
+from mcp_devbench.utils.audit_logger import AuditEventType, get_audit_logger
 from mcp_devbench.utils.docker_client import close_docker_client, get_docker_client
 from mcp_devbench.utils.exceptions import (
     ContainerNotFoundError,
@@ -52,6 +59,7 @@ from mcp_devbench.utils.exceptions import (
     FileConflictError,
     PathSecurityError,
 )
+from mcp_devbench.utils.metrics_collector import get_metrics_collector
 
 
 class HealthCheckResponse(BaseModel):
@@ -183,6 +191,9 @@ async def spawn(input_data: SpawnInput) -> SpawnOutput:
         },
     )
 
+    audit_logger = get_audit_logger()
+    metrics_collector = get_metrics_collector()
+
     try:
         manager = ContainerManager()
 
@@ -196,6 +207,20 @@ async def spawn(input_data: SpawnInput) -> SpawnOutput:
 
         # Start container
         await manager.start_container(container.id)
+
+        # Log audit event
+        audit_logger.log_event(
+            AuditEventType.CONTAINER_SPAWN,
+            container_id=container.id,
+            details={
+                "image": input_data.image,
+                "persistent": input_data.persistent,
+                "alias": input_data.alias,
+            },
+        )
+
+        # Record metrics
+        metrics_collector.record_container_spawn(input_data.image)
 
         logger.info(
             "Container spawned successfully",
@@ -259,6 +284,15 @@ async def attach(input_data: AttachInput) -> AttachOutput:
         )
         await attachment_repo.create(attachment)
 
+    # Log audit event
+    audit_logger = get_audit_logger()
+    audit_logger.log_event(
+        AuditEventType.CONTAINER_ATTACH,
+        container_id=container_id,
+        client_name=input_data.client_name,
+        session_id=input_data.session_id,
+    )
+
     logger.info(
         "Client attached successfully",
         extra={
@@ -305,6 +339,14 @@ async def kill(input_data: KillInput) -> KillOutput:
             attachment_repo = AttachmentRepository(session)
             await attachment_repo.detach_all_for_container(input_data.container_id)
 
+        # Log audit event
+        audit_logger = get_audit_logger()
+        audit_logger.log_event(
+            AuditEventType.CONTAINER_KILL,
+            container_id=input_data.container_id,
+            details={"force": input_data.force},
+        )
+
         logger.info(
             "Container killed successfully",
             extra={"container_id": input_data.container_id},
@@ -350,6 +392,22 @@ async def exec_start(input_data: ExecInput) -> ExecOutput:
             timeout_s=input_data.timeout_s,
             idempotency_key=input_data.idempotency_key,
         )
+
+        # Log audit event
+        audit_logger = get_audit_logger()
+        audit_logger.log_event(
+            AuditEventType.EXEC_START,
+            container_id=input_data.container_id,
+            details={
+                "exec_id": exec_id,
+                "cmd": input_data.cmd,
+                "as_root": input_data.as_root,
+            },
+        )
+
+        # Record metrics
+        metrics_collector = get_metrics_collector()
+        metrics_collector.record_exec(input_data.container_id, "started")
 
         logger.info("Exec started successfully", extra={"exec_id": exec_id})
 
@@ -472,6 +530,18 @@ async def fs_read(input_data: FileReadInput) -> FileReadOutput:
         # Read file and get metadata in one call
         content, file_info = await manager.read(input_data.container_id, input_data.path)
 
+        # Log audit event
+        audit_logger = get_audit_logger()
+        audit_logger.log_event(
+            AuditEventType.FS_READ,
+            container_id=input_data.container_id,
+            details={"path": input_data.path, "size_bytes": file_info.size},
+        )
+
+        # Record metrics
+        metrics_collector = get_metrics_collector()
+        metrics_collector.record_fs_operation("read")
+
         return FileReadOutput(
             content=content,
             etag=file_info.etag,
@@ -517,6 +587,18 @@ async def fs_write(input_data: FileWriteInput) -> FileWriteOutput:
         # Get file size
         file_info = await manager.stat(input_data.container_id, input_data.path)
 
+        # Log audit event
+        audit_logger = get_audit_logger()
+        audit_logger.log_event(
+            AuditEventType.FS_WRITE,
+            container_id=input_data.container_id,
+            details={"path": input_data.path, "size_bytes": file_info.size},
+        )
+
+        # Record metrics
+        metrics_collector = get_metrics_collector()
+        metrics_collector.record_fs_operation("write")
+
         return FileWriteOutput(
             path=input_data.path,
             etag=new_etag,
@@ -555,6 +637,18 @@ async def fs_delete(input_data: FileDeleteInput) -> FileDeleteOutput:
 
         # Delete file/directory
         await manager.delete(input_data.container_id, input_data.path)
+
+        # Log audit event
+        audit_logger = get_audit_logger()
+        audit_logger.log_event(
+            AuditEventType.FS_DELETE,
+            container_id=input_data.container_id,
+            details={"path": input_data.path},
+        )
+
+        # Record metrics
+        metrics_collector = get_metrics_collector()
+        metrics_collector.record_fs_operation("delete")
 
         return FileDeleteOutput(status="deleted", path=input_data.path)
 
@@ -655,16 +749,6 @@ async def fs_list(input_data: FileListInput) -> FileListOutput:
 # ========== Feature 6.2: Reconciliation Tool ==========
 
 
-class ReconcileOutput(BaseModel):
-    """Output model for reconcile operation."""
-
-    discovered: int
-    adopted: int
-    cleaned_up: int
-    orphaned: int
-    errors: int
-
-
 @mcp.tool()
 async def reconcile() -> ReconcileOutput:
     """
@@ -681,6 +765,8 @@ async def reconcile() -> ReconcileOutput:
         ReconcileOutput with reconciliation statistics
     """
     logger.info("Manual reconciliation requested")
+    audit_logger = get_audit_logger()
+    audit_logger.log_event(AuditEventType.SYSTEM_RECONCILE)
 
     try:
         reconciliation_manager = get_reconciliation_manager()
@@ -696,6 +782,205 @@ async def reconcile() -> ReconcileOutput:
 
     except Exception as e:
         logger.error("Reconciliation failed", extra={"error": str(e)})
+        raise
+
+
+@mcp.tool()
+async def metrics() -> MetricsOutput:
+    """
+    Get Prometheus metrics for monitoring.
+
+    Returns current metrics including:
+    - Container spawn counts by image
+    - Execution counts and durations
+    - Filesystem operation counts
+    - Active container and attachment gauges
+    - Memory usage by container
+
+    Returns:
+        MetricsOutput with Prometheus-formatted metrics
+    """
+    logger.debug("Metrics endpoint accessed")
+
+    try:
+        metrics_collector = get_metrics_collector()
+        metrics_data = metrics_collector.get_metrics().decode("utf-8")
+
+        return MetricsOutput(metrics=metrics_data)
+
+    except Exception as e:
+        logger.error("Failed to get metrics", extra={"error": str(e)})
+        raise
+
+
+@mcp.tool()
+async def system_status() -> SystemStatusOutput:
+    """
+    Get system health and status information.
+
+    Returns:
+        SystemStatusOutput with overall system status
+    """
+    logger.debug("System status requested")
+
+    try:
+        # Check Docker connectivity
+        docker_connected = True
+        try:
+            client = get_docker_client()
+            client.ping()
+        except Exception:
+            docker_connected = False
+
+        # Get database manager to check initialization
+        db_manager = get_db_manager()
+
+        # Count active containers and attachments using a managed session
+        async with db_manager.get_session() as session:
+            container_repo = ContainerRepository(session)
+            attachment_repo = AttachmentRepository(session)
+
+            containers = await container_repo.list_all()
+            active_containers = len([c for c in containers if c.status == "running"])
+
+            attachments = await attachment_repo.list_active()
+            active_attachments = len(attachments)
+
+        # Determine overall status
+        status = "healthy" if docker_connected else "degraded"
+
+        return SystemStatusOutput(
+            status=status,
+            docker_connected=docker_connected,
+            database_initialized=True,
+            active_containers=active_containers,
+            active_attachments=active_attachments,
+            version="0.1.0",
+        )
+
+    except Exception as e:
+        logger.error("Failed to get system status", extra={"error": str(e)})
+        raise
+
+
+@mcp.tool()
+async def garbage_collect() -> GarbageCollectOutput:
+    """
+    Trigger manual garbage collection.
+
+    Cleans up:
+    - Orphaned transient containers
+    - Old completed exec records (>24h)
+    - Abandoned attachments
+
+    Returns:
+        GarbageCollectOutput with cleanup statistics
+    """
+    logger.info("Manual garbage collection requested")
+    audit_logger = get_audit_logger()
+    audit_logger.log_event(AuditEventType.SYSTEM_GC)
+
+    try:
+        # Get maintenance manager and run GC
+        maintenance_manager = get_maintenance_manager()
+        stats = await maintenance_manager.run_maintenance()
+
+        logger.info(
+            "Garbage collection completed",
+            extra={
+                "containers_removed": stats.get("orphaned_transients", 0),
+                "execs_cleaned": stats.get("cleaned_execs", 0),
+                "attachments_cleaned": stats.get("abandoned_attachments", 0),
+            },
+        )
+
+        return GarbageCollectOutput(
+            containers_removed=stats.get("orphaned_transients", 0),
+            execs_cleaned=stats.get("cleaned_execs", 0),
+            attachments_cleaned=stats.get("abandoned_attachments", 0),
+        )
+
+    except Exception as e:
+        logger.error("Garbage collection failed", extra={"error": str(e)})
+        raise
+
+
+@mcp.tool()
+async def list_containers() -> ContainerListOutput:
+    """
+    List all containers with detailed information.
+
+    Returns:
+        ContainerListOutput with container details
+    """
+    logger.debug("Container list requested")
+
+    try:
+        db_manager = get_db_manager()
+        container_repo = ContainerRepository(db_manager.session)
+
+        containers = await container_repo.list_all()
+
+        container_list = [
+            {
+                "id": c.id,
+                "docker_id": c.docker_id,
+                "alias": c.alias,
+                "image": c.image,
+                "status": c.status,
+                "persistent": c.persistent,
+                "created_at": c.created_at.isoformat() if c.created_at else None,
+                "last_seen": c.last_seen.isoformat() if c.last_seen else None,
+            }
+            for c in containers
+        ]
+
+        return ContainerListOutput(containers=container_list)
+
+    except Exception as e:
+        logger.error("Failed to list containers", extra={"error": str(e)})
+        raise
+
+
+@mcp.tool()
+async def list_execs() -> ExecListOutput:
+    """
+    List active command executions.
+
+    Returns:
+        ExecListOutput with active execution details
+    """
+    logger.debug("Exec list requested")
+
+    try:
+        db_manager = get_db_manager()
+
+        # Get all execs (we could filter for active ones)
+        from sqlalchemy import select
+
+        from mcp_devbench.models.execs import Exec
+
+        result = await db_manager.session.execute(
+            select(Exec).where(Exec.ended_at.is_(None)).limit(100)
+        )
+        execs = result.scalars().all()
+
+        exec_list = [
+            {
+                "exec_id": e.exec_id,
+                "container_id": e.container_id,
+                "cmd": e.cmd,
+                "as_root": e.as_root,
+                "started_at": e.started_at.isoformat() if e.started_at else None,
+                "status": "running" if e.ended_at is None else "completed",
+            }
+            for e in execs
+        ]
+
+        return ExecListOutput(execs=exec_list)
+
+    except Exception as e:
+        logger.error("Failed to list execs", extra={"error": str(e)})
         raise
 
 

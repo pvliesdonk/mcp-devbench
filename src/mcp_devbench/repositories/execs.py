@@ -85,9 +85,9 @@ class ExecRepository(BaseRepository[Exec]):
         Returns:
             List of old completed execs
         """
-        from datetime import timedelta
+        from datetime import timedelta, timezone
 
-        cutoff = datetime.utcnow() - timedelta(hours=hours)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
         stmt = select(Exec).where(Exec.ended_at.is_not(None), Exec.ended_at < cutoff)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
