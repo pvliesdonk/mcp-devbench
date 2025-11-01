@@ -47,16 +47,10 @@ jobs:
       uses: python-semantic-release/python-semantic-release@v9.14
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-    
-    - name: Publish package to PyPI
+
+    - name: Publish to PyPI and GitHub
       if: steps.release.outputs.released == 'true'
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        password: ${{ secrets.PYPI_API_TOKEN }}
-    
-    - name: Publish package to GitHub Release
-      if: steps.release.outputs.released == 'true'
-      uses: python-semantic-release/upload-to-gh-release@v9.14.0
+      uses: python-semantic-release/publish-action@v9.14.0
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        tag: ${{ steps.release.outputs.tag }}
+        pypi_token: ${{ secrets.PYPI_API_TOKEN }}
