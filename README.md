@@ -467,7 +467,7 @@ mcp-devbench/
 ✅ **Epic 6: State Management** - Shutdown, recovery, maintenance
 ✅ **Epic 7: Observability** - Audit logging, metrics, admin tools
 
-**Test Coverage:** 201 tests, ~72% test-to-code ratio
+**Test Coverage:** ~72% (201 tests)
 **Code Quality:** Zero linting issues (ruff)
 **Production Ready:** Yes, for small-to-medium deployments
 
