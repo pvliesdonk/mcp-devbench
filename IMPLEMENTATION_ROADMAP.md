@@ -12,11 +12,12 @@ This roadmap consolidates recommendations from comprehensive code analysis and d
 
 ### Key Objectives
 
-1. **Harden Production Readiness** - Comprehensive testing, security scanning, and operational tooling
-2. **Improve Performance** - Async I/O optimization, caching, and resource management
-3. **Enable Scale** - Multi-instance deployment, PostgreSQL support, distributed locking
-4. **Enhance Developer Experience** - Better documentation, tooling, and debugging capabilities
-5. **Enterprise Features** - Multi-tenancy, advanced security policies, and observability
+1. **Comprehensive Documentation** - API docs, mkdocs website, runbooks, and contributor guides
+2. **Harden Production Readiness** - Comprehensive testing, security scanning, and operational tooling
+3. **Improve Performance** - Native async I/O with aio-docker, caching, and resource management
+4. **Enable Scale** - Multi-instance deployment, PostgreSQL support, distributed locking
+5. **Architecture Flexibility** - Abstract container runtime for Docker, Podman, Kubernetes support
+6. **Enterprise Features** - Multi-tenancy, advanced security policies, and observability
 
 ### Success Metrics
 
@@ -101,10 +102,10 @@ repos:
       - id: check-added-large-files
       - id: check-merge-conflict
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.7.0
+  - repo: https://github.com/RobertCraigie/pyright-python
+    rev: v1.1.338
     hooks:
-      - id: mypy
+      - id: pyright
         additional_dependencies: [types-all]
 ```
 
@@ -120,38 +121,59 @@ repos:
 
 ---
 
-### QW-3: Add Type Checking with mypy
+### QW-3: Add Type Checking with Pyright
 
 **Problem:** Missing static type checking leads to runtime type errors.
 
 **Solution:**
 ```toml
 # pyproject.toml
-[tool.mypy]
-python_version = "3.11"
-warn_return_any = true
-warn_unused_configs = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-disallow_untyped_defs = true
-disallow_any_generics = true
-check_untyped_defs = true
-no_implicit_optional = true
-strict_equality = true
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "strict"
+reportMissingTypeStubs = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+reportUnknownArgumentType = false
 
-[[tool.mypy.overrides]]
-module = "docker.*"
-ignore_missing_imports = true
+# Ignore type stubs for third-party packages
+[tool.pyright.ignore]
+"docker" = true
 ```
+
+```yaml
+# .github/workflows/ci.yml - Add pyright step
+- name: Type check with pyright
+  run: |
+    uv run pyright src/
+```
+
+**Why Pyright over mypy:**
+- Faster type checking (written in TypeScript, runs in Node.js)
+- Better error messages and IDE integration
+- More accurate type narrowing
+- Better support for modern Python type features
+- Active development by Microsoft (powers Pylance in VS Code)
 
 **Files to Modify:**
 - `pyproject.toml`
-- `.github/workflows/ci.yml` (add mypy step)
+- `.github/workflows/ci.yml` (add pyright step)
 - Add type hints to all functions lacking them
+
+**Dependencies:**
+```toml
+# pyproject.toml
+[project.optional-dependencies]
+dev = [
+    # ... existing ...
+    "pyright>=1.1.338",
+]
+```
 
 **Success Criteria:**
 - 100% type coverage in core modules
-- mypy passes in CI with strict mode
+- Pyright passes in CI with strict mode
+- Zero type errors in production code
 
 ---
 
@@ -401,7 +423,676 @@ docker-compose.yml
 
 ---
 
-## Epic 1: Testing & Quality Assurance
+### QW-8: Establish Project Style and Conventions
+
+**Problem:** Inconsistent tooling and conventions can lead to confusion for contributors.
+
+**Solution:** Document and enforce project-wide conventions.
+
+```markdown
+# docs/development/project-style.md
+
+## Project Style Guide
+
+### Package Management
+
+**Standard: uv (not pip)**
+
+MCP DevBench uses [uv](https://github.com/astral-sh/uv) as the standard package manager.
+
+**✅ Do:**
+```bash
+# Install dependencies
+uv sync
+
+# Add a dependency
+uv add requests
+
+# Add a dev dependency
+uv add --dev pytest
+
+# Run commands in the virtual environment
+uv run pytest
+uv run python -m mcp_devbench.server
+
+# Install the project in development mode
+uv pip install -e .
+```
+
+**❌ Don't:**
+```bash
+# Avoid using pip directly
+pip install -r requirements.txt  # Don't do this
+pip install requests             # Don't do this
+python -m pytest                 # Use 'uv run pytest' instead
+```
+
+**Why uv?**
+- **10-100x faster** than pip for dependency resolution
+- **Built-in lock file** for reproducible installs
+- **Compatible with pip** - uses standard pyproject.toml
+- **Better caching** and parallel downloads
+- **Active development** by Astral (creators of ruff)
+
+### Virtual Environment
+
+uv automatically manages the virtual environment in `.venv/`. You don't need to manually create or activate it.
+
+```bash
+# uv automatically uses .venv/
+uv run python --version
+
+# If you need to activate manually (rare):
+source .venv/bin/activate  # Unix
+.venv\Scripts\activate     # Windows
+```
+
+### Dependencies
+
+**Adding Dependencies:**
+
+1. **Runtime dependencies** go in `pyproject.toml` under `[project.dependencies]`:
+   ```bash
+   uv add fastmcp pydantic docker
+   ```
+
+2. **Development dependencies** go in `[project.optional-dependencies.dev]`:
+   ```bash
+   uv add --dev pytest ruff pyright
+   ```
+
+3. **Always commit `uv.lock`** - This ensures reproducible builds across all environments.
+
+**Updating Dependencies:**
+
+```bash
+# Update all dependencies
+uv sync --upgrade
+
+# Update specific package
+uv add requests@latest
+```
+
+### Code Style
+
+**Linting and Formatting: ruff**
+
+```bash
+# Check code style
+uv run ruff check .
+
+# Auto-fix issues
+uv run ruff check . --fix
+
+# Format code
+uv run ruff format .
+```
+
+**Type Checking: pyright**
+
+```bash
+# Run type checker
+uv run pyright src/
+
+# Type check specific file
+uv run pyright src/mcp_devbench/server.py
+```
+
+**Pre-commit Hooks:**
+
+Set up pre-commit hooks to automatically check code before committing:
+
+```bash
+# Install pre-commit hooks
+uv run pre-commit install
+
+# Manually run on all files
+uv run pre-commit run --all-files
+```
+
+### Testing
+
+**Running Tests:**
+
+```bash
+# Run all tests
+uv run pytest
+
+# Run with coverage
+uv run pytest --cov=mcp_devbench --cov-report=html
+
+# Run specific test file
+uv run pytest tests/unit/test_container_manager.py
+
+# Run with specific markers
+uv run pytest -m "not e2e"  # Skip E2E tests
+uv run pytest -m integration  # Only integration tests
+```
+
+### Import Organization
+
+**Order:**
+1. Standard library imports
+2. Third-party imports
+3. Local application imports
+
+```python
+# Good
+import asyncio
+import json
+from datetime import datetime
+
+from docker import DockerClient
+from pydantic import BaseModel
+
+from mcp_devbench.config import get_settings
+from mcp_devbench.utils import get_logger
+```
+
+**Avoid star imports:**
+
+```python
+# ❌ Bad
+from mcp_devbench.models import *
+
+# ✅ Good
+from mcp_devbench.models import Container, Exec, Attachment
+```
+
+### Async Conventions
+
+**Always use async for I/O operations:**
+
+```python
+# ✅ Good
+async def read_file(path: str) -> bytes:
+    return await asyncio.to_thread(lambda: open(path, 'rb').read())
+
+# ❌ Bad
+def read_file(path: str) -> bytes:
+    return open(path, 'rb').read()  # Blocks event loop!
+```
+
+**Use type hints everywhere:**
+
+```python
+# ✅ Good
+async def create_container(
+    image: str,
+    alias: str | None = None,
+    persistent: bool = False,
+) -> Container:
+    ...
+
+# ❌ Bad
+async def create_container(image, alias=None, persistent=False):
+    ...
+```
+
+### Error Handling
+
+**Use specific exceptions:**
+
+```python
+# ✅ Good
+from mcp_devbench.utils.exceptions import ContainerNotFoundError
+
+if not container:
+    raise ContainerNotFoundError(f"Container {container_id} not found")
+
+# ❌ Bad
+if not container:
+    raise Exception("Container not found")
+```
+
+### Logging
+
+**Use structured logging:**
+
+```python
+# ✅ Good
+logger.info(
+    "Container created",
+    extra={
+        "container_id": container.id,
+        "image": container.image,
+    }
+)
+
+# ❌ Bad
+logger.info(f"Container {container.id} created with image {container.image}")
+```
+
+### Commit Messages
+
+**Use Conventional Commits:**
+
+```bash
+# Format: <type>(<scope>): <description>
+
+feat(exec): add idempotency support for command execution
+fix(fs): resolve race condition in concurrent writes
+docs(api): add OpenAPI specification
+refactor(db): optimize connection pooling
+test(e2e): add full workflow integration tests
+chore(deps): update dependencies
+```
+
+**Types:**
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `refactor`: Code refactoring
+- `test`: Adding or updating tests
+- `chore`: Maintenance tasks
+- `perf`: Performance improvements
+- `ci`: CI/CD changes
+
+### Documentation
+
+**Docstrings:**
+
+Use Google-style docstrings:
+
+```python
+async def create_container(
+    image: str,
+    alias: str | None = None,
+    persistent: bool = False,
+) -> Container:
+    """Create a new Docker container.
+
+    Args:
+        image: Docker image reference (e.g., "python:3.11-slim")
+        alias: Optional user-friendly name for the container
+        persistent: Whether container should persist across restarts
+
+    Returns:
+        Created container instance
+
+    Raises:
+        ContainerAlreadyExistsError: If alias already exists
+        ImagePolicyError: If image is not allowed
+        DockerAPIError: If Docker operations fail
+    """
+    ...
+```
+
+### CI/CD
+
+All checks must pass before merging:
+
+1. ✅ Tests pass (`uv run pytest`)
+2. ✅ Linting passes (`uv run ruff check .`)
+3. ✅ Formatting correct (`uv run ruff format --check .`)
+4. ✅ Type checking passes (`uv run pyright src/`)
+5. ✅ Security scans pass (Trivy, Safety)
+6. ✅ Code coverage >85%
+
+### Summary
+
+| Tool | Purpose | Command |
+|------|---------|---------|
+| **uv** | Package management | `uv sync`, `uv add`, `uv run` |
+| **ruff** | Linting + Formatting | `uv run ruff check .`, `uv run ruff format .` |
+| **pyright** | Type checking | `uv run pyright src/` |
+| **pytest** | Testing | `uv run pytest` |
+| **pre-commit** | Git hooks | `uv run pre-commit run --all-files` |
+```
+
+**Files to Create:**
+- `docs/development/project-style.md`
+- Update `CONTRIBUTING.md` to reference this guide
+
+**Files to Modify:**
+- `README.md` - Add "Development" section referencing style guide
+- `CONTRIBUTING.md` - Link to style guide
+
+**Success Criteria:**
+- All contributors follow uv conventions
+- No pip-related commands in documentation
+- Style guide referenced in CONTRIBUTING.md
+
+---
+
+## Epic 1: Documentation & Developer Experience
+
+**Priority:** P0 (Critical)
+**Timeline:** 2-3 weeks
+**Effort:** Low-Medium
+**Owner:** Documentation Team
+
+### Overview
+
+Comprehensive documentation is critical for project adoption and contributor onboarding. This epic establishes world-class documentation with mkdocs, API specs, runbooks, and guides.
+
+### Features
+
+#### E1-F1: MkDocs Website Setup
+
+**Description:** Create a professional documentation website with mkdocs-material.
+
+**Implementation:**
+
+```yaml
+# mkdocs.yml
+site_name: MCP DevBench
+site_description: Docker container management server with MCP protocol
+site_url: https://pvliesdonk.github.io/mcp-devbench
+repo_url: https://github.com/pvliesdonk/mcp-devbench
+repo_name: pvliesdonk/mcp-devbench
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+  - awesome-pages
+  - git-revision-date-localized:
+      enable_creation_date: true
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - tables
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quickstart.md
+    - Configuration: getting-started/configuration.md
+  - User Guide:
+    - Container Management: guide/containers.md
+    - Command Execution: guide/execution.md
+    - Filesystem Operations: guide/filesystem.md
+    - Security: guide/security.md
+    - Monitoring: guide/monitoring.md
+  - API Reference:
+    - Overview: api/overview.md
+    - MCP Tools: api/tools.md
+    - Authentication: api/authentication.md
+    - Error Handling: api/errors.md
+    - API Reference: api/reference/
+  - Operations:
+    - Deployment: operations/deployment.md
+    - Monitoring: operations/monitoring.md
+    - Troubleshooting: operations/troubleshooting.md
+    - Runbooks: operations/runbooks/
+  - Development:
+    - Contributing: development/contributing.md
+    - Project Style: development/project-style.md
+    - Architecture: development/architecture.md
+    - Testing: development/testing.md
+    - Release Process: development/releases.md
+  - About:
+    - Changelog: about/changelog.md
+    - License: about/license.md
+    - Roadmap: about/roadmap.md
+```
+
+**Directory Structure:**
+```
+docs/
+├── index.md                           # Home page
+├── getting-started/
+│   ├── installation.md
+│   ├── quickstart.md
+│   └── configuration.md
+├── guide/
+│   ├── containers.md
+│   ├── execution.md
+│   ├── filesystem.md
+│   ├── security.md
+│   └── monitoring.md
+├── api/
+│   ├── overview.md
+│   ├── tools.md
+│   ├── authentication.md
+│   ├── errors.md
+│   └── reference/                    # Auto-generated from code
+│       ├── server.md
+│       ├── managers.md
+│       └── models.md
+├── operations/
+│   ├── deployment.md
+│   ├── monitoring.md
+│   ├── troubleshooting.md
+│   └── runbooks/
+│       ├── container-cleanup.md
+│       ├── database-recovery.md
+│       └── performance-tuning.md
+├── development/
+│   ├── contributing.md
+│   ├── project-style.md
+│   ├── architecture.md
+│   ├── testing.md
+│   └── releases.md
+└── about/
+    ├── changelog.md
+    ├── license.md
+    └── roadmap.md
+```
+
+**Build and Deploy:**
+```yaml
+# .github/workflows/docs.yml
+name: Deploy Documentation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Install dependencies
+        run: |
+          uv add --dev mkdocs-material mkdocstrings[python] mkdocs-awesome-pages-plugin mkdocs-git-revision-date-localized-plugin
+
+      - name: Build documentation
+        run: uv run mkdocs build
+
+      - name: Deploy to GitHub Pages
+        if: github.ref == 'refs/heads/main'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
+```
+
+**Files to Create:**
+- `mkdocs.yml`
+- All documentation files in `docs/` directory
+- `.github/workflows/docs.yml`
+
+**Dependencies:**
+```toml
+# pyproject.toml
+[project.optional-dependencies]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=0.24.0",
+    "mkdocs-awesome-pages-plugin>=2.9.0",
+    "mkdocs-git-revision-date-localized-plugin>=1.2.0",
+]
+```
+
+**Local Development:**
+```bash
+# Install docs dependencies
+uv sync --extra docs
+
+# Serve docs locally
+uv run mkdocs serve
+
+# Build docs
+uv run mkdocs build
+```
+
+**Success Criteria:**
+- Professional documentation website deployed to GitHub Pages
+- Auto-generated API reference from code docstrings
+- All user guides and operations runbooks documented
+- Search functionality working
+- Dark/light theme toggle
+- Mobile-responsive design
+
+---
+
+#### E1-F2: Comprehensive API Documentation
+
+**Description:** Generate OpenAPI specification and detailed API documentation.
+
+**Implementation:**
+```python
+# scripts/generate_api_docs.py
+
+from mcp_devbench import server, mcp_tools
+import inspect
+import json
+
+def generate_openapi_spec():
+    """Generate OpenAPI 3.0 specification."""
+
+    spec = {
+        "openapi": "3.0.0",
+        "info": {
+            "title": "MCP DevBench API",
+            "version": "0.1.0",
+            "description": "Docker container management server with MCP protocol",
+            "contact": {
+                "name": "MCP DevBench Team",
+                "url": "https://github.com/pvliesdonk/mcp-devbench"
+            },
+            "license": {
+                "name": "MIT",
+                "url": "https://opensource.org/licenses/MIT"
+            }
+        },
+        "servers": [
+            {
+                "url": "http://localhost:8000",
+                "description": "Development server"
+            }
+        ],
+        "paths": {},
+        "components": {
+            "schemas": {},
+            "securitySchemes": {
+                "bearer": {
+                    "type": "http",
+                    "scheme": "bearer"
+                },
+                "oidc": {
+                    "type": "openIdConnect",
+                    "openIdConnectUrl": "{MCP_OAUTH_CONFIG_URL}"
+                }
+            }
+        }
+    }
+
+    # Extract all Pydantic models
+    for name, obj in inspect.getmembers(mcp_tools):
+        if inspect.isclass(obj) and hasattr(obj, 'model_json_schema'):
+            schema = obj.model_json_schema()
+            spec["components"]["schemas"][name] = schema
+
+    # Extract all tools
+    # This would introspect the FastMCP server and extract tool definitions
+
+    return spec
+
+if __name__ == "__main__":
+    spec = generate_openapi_spec()
+
+    with open("docs/api/openapi.json", "w") as f:
+        json.dump(spec, f, indent=2)
+
+    print("✓ Generated docs/api/openapi.json")
+```
+
+**Files to Create:**
+- `scripts/generate_api_docs.py`
+- `docs/api/openapi.json`
+- `docs/api/overview.md`
+- `docs/api/tools.md` (detailed documentation of each MCP tool)
+- `docs/api/authentication.md`
+- `docs/api/errors.md`
+
+**Success Criteria:**
+- Complete OpenAPI specification generated
+- All tools documented with examples
+- Error codes documented
+- Authentication flows documented
+
+---
+
+## Epic 2: Testing & Quality Assurance
 
 **Priority:** P0 (Critical)
 **Timeline:** 3-4 weeks
@@ -910,79 +1601,177 @@ async def test_exec_streaming_contract():
 
 ### Features
 
-#### E2-F1: Async Docker Client Wrapper
+#### E2-F1: Migrate to Native Async Docker Client (aiodocker)
 
-**Description:** Replace blocking Docker SDK with async wrapper.
+**Description:** Replace blocking docker-py SDK with native async aiodocker library.
+
+**Why aiodocker over thread pool wrapper:**
+- **True async I/O** - No thread pool overhead, uses aiohttp directly
+- **Better performance** - Native async eliminates context switching
+- **Streaming support** - Real-time log streaming without blocking
+- **Active development** - Well-maintained with Docker API parity
+- **Clean API** - Pythonic async/await interface
 
 **Implementation:**
 ```python
 # src/mcp_devbench/utils/async_docker.py
 
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
-from functools import wraps
-from typing import Any, Callable, TypeVar
-
-import docker
-from docker import DockerClient
-
-T = TypeVar('T')
+import aiodocker
+from aiodocker.exceptions import DockerError
+from typing import Dict, List, Any
 
 class AsyncDockerClient:
-    """Async wrapper around Docker SDK."""
+    """Native async Docker client using aiodocker."""
 
-    def __init__(self, client: DockerClient, max_workers: int = 10):
-        self._client = client
-        self._executor = ThreadPoolExecutor(max_workers=max_workers)
+    def __init__(self, docker_host: str | None = None):
+        """Initialize aiodocker client.
 
-    async def _run_in_executor(self, func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
-        """Run blocking function in thread pool."""
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            self._executor,
-            lambda: func(*args, **kwargs)
-        )
+        Args:
+            docker_host: Docker daemon URL (default: unix://var/run/docker.sock)
+        """
+        self._client: aiodocker.Docker | None = None
+        self._docker_host = docker_host
 
-    async def create_container(self, *args, **kwargs):
-        """Async container creation."""
-        return await self._run_in_executor(
-            self._client.containers.create,
-            *args,
-            **kwargs
-        )
+    async def connect(self):
+        """Connect to Docker daemon."""
+        if self._client is None:
+            self._client = aiodocker.Docker(url=self._docker_host)
+
+    async def close(self):
+        """Close connection to Docker daemon."""
+        if self._client:
+            await self._client.close()
+            self._client = None
+
+    async def create_container(
+        self,
+        image: str,
+        name: str | None = None,
+        labels: Dict[str, str] | None = None,
+        env: Dict[str, str] | None = None,
+        cmd: List[str] | None = None,
+        volumes: Dict[str, Dict[str, str]] | None = None,
+        host_config: Dict[str, Any] | None = None,
+        user: str | None = None,
+    ) -> Dict[str, Any]:
+        """Create a container (native async)."""
+        await self.connect()
+
+        config = {
+            "Image": image,
+            "Labels": labels or {},
+            "Env": [f"{k}={v}" for k, v in (env or {}).items()],
+        }
+
+        if name:
+            config["name"] = name
+        if cmd:
+            config["Cmd"] = cmd
+        if user:
+            config["User"] = user
+        if volumes:
+            config["Volumes"] = {k: {} for k in volumes.keys()}
+        if host_config:
+            config["HostConfig"] = host_config
+
+        container = await self._client.containers.create(config=config)
+        return {
+            "id": container.id,
+            "container": container,
+        }
 
     async def start_container(self, container_id: str):
-        """Async container start."""
-        container = self._client.containers.get(container_id)
-        return await self._run_in_executor(container.start)
+        """Start a container (native async)."""
+        await self.connect()
+        container = await self._client.containers.get(container_id)
+        await container.start()
 
-    async def exec_create(self, container_id: str, cmd: list, **kwargs):
-        """Async exec creation."""
-        container = self._client.containers.get(container_id)
-        return await self._run_in_executor(
-            container.exec_run,
-            cmd,
-            **kwargs
-        )
+    async def stop_container(self, container_id: str, timeout: int = 10):
+        """Stop a container (native async)."""
+        await self.connect()
+        container = await self._client.containers.get(container_id)
+        await container.stop(timeout=timeout)
 
-    async def pull_image(self, image: str):
-        """Async image pull."""
-        return await self._run_in_executor(
-            self._client.images.pull,
-            image
-        )
+    async def remove_container(self, container_id: str, force: bool = False):
+        """Remove a container (native async)."""
+        await self.connect()
+        container = await self._client.containers.get(container_id)
+        await container.delete(force=force)
+
+    async def exec_create(
+        self,
+        container_id: str,
+        cmd: List[str],
+        user: str | None = None,
+        env: Dict[str, str] | None = None,
+        workdir: str | None = None,
+    ) -> str:
+        """Create an exec instance (native async)."""
+        await self.connect()
+        container = await self._client.containers.get(container_id)
+
+        exec_config = {
+            "Cmd": cmd,
+            "AttachStdout": True,
+            "AttachStderr": True,
+        }
+
+        if user:
+            exec_config["User"] = user
+        if env:
+            exec_config["Env"] = [f"{k}={v}" for k, v in env.items()]
+        if workdir:
+            exec_config["WorkingDir"] = workdir
+
+        exec_instance = await container.exec(exec_config)
+        return exec_instance["Id"]
+
+    async def exec_start(self, exec_id: str):
+        """Start an exec instance and stream output (native async)."""
+        await self.connect()
+        # aiodocker provides streaming via async iteration
+        exec_stream = await self._client.execs.start(exec_id, detach=False)
+
+        async for message in exec_stream:
+            yield message
+
+    async def pull_image(self, image: str, auth: Dict[str, str] | None = None):
+        """Pull an image (native async with progress)."""
+        await self.connect()
+
+        async for progress in self._client.images.pull(
+            from_image=image,
+            auth=auth,
+            stream=True
+        ):
+            # Can emit progress events if needed
+            pass
+
+    async def get_container_stats(self, container_id: str) -> Dict[str, Any]:
+        """Get container stats (native async)."""
+        await self.connect()
+        container = await self._client.containers.get(container_id)
+        stats = await container.stats(stream=False)
+        return stats
 
     async def ping(self) -> bool:
-        """Async Docker daemon ping."""
+        """Ping Docker daemon (native async)."""
         try:
-            await self._run_in_executor(self._client.ping)
+            await self.connect()
+            await self._client.ping()
             return True
         except Exception:
             return False
 
-    def close(self):
-        """Cleanup resources."""
-        self._executor.shutdown(wait=True)
+    async def __aenter__(self):
+        """Context manager entry."""
+        await self.connect()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit."""
+        await self.close()
+
 
 # Global async client instance
 _async_docker_client: AsyncDockerClient | None = None
@@ -992,36 +1781,101 @@ def get_async_docker_client() -> AsyncDockerClient:
     global _async_docker_client
 
     if _async_docker_client is None:
-        sync_client = get_docker_client()  # Existing sync client
-        _async_docker_client = AsyncDockerClient(sync_client)
+        settings = get_settings()
+        _async_docker_client = AsyncDockerClient(docker_host=settings.docker_host)
 
     return _async_docker_client
 
-def close_async_docker_client():
+async def close_async_docker_client():
     """Close async Docker client."""
     global _async_docker_client
 
     if _async_docker_client is not None:
-        _async_docker_client.close()
+        await _async_docker_client.close()
         _async_docker_client = None
 ```
 
+**Migration Strategy:**
+
+1. **Phase 1: Install aiodocker**
+   ```bash
+   uv add aiodocker
+   ```
+
+2. **Phase 2: Create adapter layer**
+   - Keep existing `docker_client.py` for backward compatibility
+   - Add `async_docker.py` with aiodocker implementation
+   - Gradually migrate managers to use async client
+
+3. **Phase 3: Update managers**
+   ```python
+   # Example: src/mcp_devbench/managers/container_manager.py
+
+   class ContainerManager:
+       def __init__(self):
+           self.async_docker = get_async_docker_client()
+           # ... rest of init
+
+       async def create_container(self, image: str, ...) -> Container:
+           # Use aiodocker instead of docker-py
+           result = await self.async_docker.create_container(
+               image=image,
+               name=container_id,
+               labels=labels,
+               volumes=volumes,
+               host_config=host_config,
+           )
+
+           # Rest of logic...
+   ```
+
+4. **Phase 4: Deprecate sync client**
+   - Remove docker-py dependency
+   - Update all tests to use aiodocker
+   - Remove `utils/docker_client.py`
+
 **Files to Create:**
-- `src/mcp_devbench/utils/async_docker.py`
+- `src/mcp_devbench/utils/async_docker.py` (aiodocker wrapper)
 
 **Files to Modify:**
-- `src/mcp_devbench/managers/container_manager.py` (use async client)
-- `src/mcp_devbench/managers/exec_manager.py` (use async client)
-- `src/mcp_devbench/managers/image_policy_manager.py` (use async client)
+- `pyproject.toml` (add aiodocker dependency)
+- `src/mcp_devbench/managers/container_manager.py`
+- `src/mcp_devbench/managers/exec_manager.py`
+- `src/mcp_devbench/managers/image_policy_manager.py`
+- `src/mcp_devbench/server.py` (update lifespan)
+
+**Dependencies:**
+```toml
+# pyproject.toml
+dependencies = [
+    # ... existing ...
+    # Remove: "docker>=7.0.0",
+    "aiodocker>=0.21.0",  # Native async Docker client
+]
+```
 
 **Tests Required:**
 - `tests/unit/test_async_docker.py`
-- `tests/performance/test_async_vs_sync.py`
+- `tests/performance/test_aiodocker_vs_sync.py`
+- Update all existing tests to use aiodocker
+
+**Migration Checklist:**
+- [ ] Install aiodocker
+- [ ] Create async_docker.py wrapper
+- [ ] Migrate container_manager.py
+- [ ] Migrate exec_manager.py
+- [ ] Migrate image_policy_manager.py
+- [ ] Update server lifespan (close async client)
+- [ ] Update all tests
+- [ ] Remove docker-py dependency
+- [ ] Performance benchmarks
 
 **Success Criteria:**
-- All Docker operations use async wrapper
-- No blocking calls in async context
-- Performance improvement >30% under concurrent load
+- All Docker operations use aiodocker (no blocking calls)
+- Performance improvement >50% under concurrent load (vs thread pool)
+- Real-time log streaming working
+- Zero event loop blocking detected
+- All tests passing with aiodocker
 
 ---
 
@@ -2807,17 +3661,779 @@ class Snapshot(Base):
 
 ---
 
+## Epic 7: Container Runtime Abstraction
+
+**Priority:** P1 (High)
+**Timeline:** 4-6 weeks
+**Effort:** High
+**Owner:** Architecture Team
+
+### Overview
+
+Abstract the container runtime interface to decouple MCP DevBench from Docker-specific implementations. This enables future support for Podman, Kubernetes, and other container runtimes while maintaining a consistent API.
+
+### Motivation
+
+**Current Problem:**
+- Application logic is tightly coupled to Docker daemon
+- Cannot integrate with other container runtimes (Podman, containerd)
+- Cannot run in Kubernetes without significant refactoring
+- Docker-specific error handling throughout codebase
+
+**Benefits of Abstraction:**
+- **Runtime flexibility** - Support Docker, Podman, Kubernetes CRI
+- **Cloud-native deployment** - Run as Kubernetes controller
+- **Testing improvements** - Mock runtime for unit tests
+- **Future-proof** - Easy to add new runtime support
+- **Vendor independence** - Not locked into Docker ecosystem
+
+### Features
+
+#### E7-F1: Define Container Runtime Interface
+
+**Description:** Create abstract base class defining all container operations.
+
+**Implementation:**
+```python
+# src/mcp_devbench/runtime/interface.py
+
+from abc import ABC, abstractmethod
+from typing import Dict, List, Any, AsyncIterator
+from dataclasses import dataclass
+
+@dataclass
+class ContainerConfig:
+    """Container configuration (runtime-agnostic)."""
+    image: str
+    name: str | None = None
+    labels: Dict[str, str] | None = None
+    env: Dict[str, str] | None = None
+    cmd: List[str] | None = None
+    user: str | None = None
+    working_dir: str | None = None
+    volumes: Dict[str, Dict[str, str]] | None = None
+    memory_limit: int | None = None
+    cpu_limit: float | None = None
+    read_only_rootfs: bool = True
+    capabilities_drop: List[str] | None = None
+    capabilities_add: List[str] | None = None
+
+@dataclass
+class ContainerInfo:
+    """Container information (runtime-agnostic)."""
+    id: str
+    name: str
+    status: str  # running, stopped, paused, etc.
+    image: str
+    created_at: str
+    labels: Dict[str, str]
+
+@dataclass
+class ExecConfig:
+    """Exec configuration (runtime-agnostic)."""
+    cmd: List[str]
+    user: str | None = None
+    env: Dict[str, str] | None = None
+    working_dir: str | None = None
+    attach_stdout: bool = True
+    attach_stderr: bool = True
+
+@dataclass
+class ExecResult:
+    """Exec result (runtime-agnostic)."""
+    exit_code: int
+    stdout: bytes
+    stderr: bytes
+
+class ContainerRuntime(ABC):
+    """Abstract base class for container runtimes."""
+
+    @abstractmethod
+    async def initialize(self) -> None:
+        """Initialize connection to runtime."""
+        pass
+
+    @abstractmethod
+    async def close(self) -> None:
+        """Close connection to runtime."""
+        pass
+
+    @abstractmethod
+    async def ping(self) -> bool:
+        """Check if runtime is available."""
+        pass
+
+    # Container lifecycle
+    @abstractmethod
+    async def create_container(self, config: ContainerConfig) -> str:
+        """Create a container and return its ID."""
+        pass
+
+    @abstractmethod
+    async def start_container(self, container_id: str) -> None:
+        """Start a container."""
+        pass
+
+    @abstractmethod
+    async def stop_container(self, container_id: str, timeout: int = 10) -> None:
+        """Stop a container."""
+        pass
+
+    @abstractmethod
+    async def remove_container(self, container_id: str, force: bool = False) -> None:
+        """Remove a container."""
+        pass
+
+    @abstractmethod
+    async def get_container(self, container_id: str) -> ContainerInfo:
+        """Get container information."""
+        pass
+
+    @abstractmethod
+    async def list_containers(
+        self,
+        all: bool = False,
+        filters: Dict[str, str] | None = None
+    ) -> List[ContainerInfo]:
+        """List containers."""
+        pass
+
+    # Command execution
+    @abstractmethod
+    async def exec_create(
+        self,
+        container_id: str,
+        config: ExecConfig
+    ) -> str:
+        """Create an exec instance and return its ID."""
+        pass
+
+    @abstractmethod
+    async def exec_start(
+        self,
+        exec_id: str,
+        stream: bool = False
+    ) -> ExecResult | AsyncIterator[bytes]:
+        """Start an exec instance."""
+        pass
+
+    @abstractmethod
+    async def exec_inspect(self, exec_id: str) -> Dict[str, Any]:
+        """Inspect an exec instance."""
+        pass
+
+    # Image operations
+    @abstractmethod
+    async def pull_image(
+        self,
+        image: str,
+        auth: Dict[str, str] | None = None
+    ) -> AsyncIterator[Dict[str, Any]]:
+        """Pull an image (yields progress updates)."""
+        pass
+
+    @abstractmethod
+    async def image_exists(self, image: str) -> bool:
+        """Check if an image exists locally."""
+        pass
+
+    # Container stats
+    @abstractmethod
+    async def get_stats(
+        self,
+        container_id: str,
+        stream: bool = False
+    ) -> Dict[str, Any] | AsyncIterator[Dict[str, Any]]:
+        """Get container resource statistics."""
+        pass
+
+    # Context managers
+    async def __aenter__(self):
+        """Context manager entry."""
+        await self.initialize()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit."""
+        await self.close()
+```
+
+**Files to Create:**
+- `src/mcp_devbench/runtime/__init__.py`
+- `src/mcp_devbench/runtime/interface.py`
+
+**Success Criteria:**
+- Complete interface defined
+- All necessary operations abstracted
+- Runtime-agnostic data types
+
+---
+
+#### E7-F2: Implement Docker Runtime Adapter
+
+**Description:** Implement `ContainerRuntime` interface for Docker using aiodocker.
+
+**Implementation:**
+```python
+# src/mcp_devbench/runtime/docker_runtime.py
+
+import aiodocker
+from aiodocker.exceptions import DockerError
+from typing import Dict, List, Any, AsyncIterator
+
+from mcp_devbench.runtime.interface import (
+    ContainerRuntime,
+    ContainerConfig,
+    ContainerInfo,
+    ExecConfig,
+    ExecResult,
+)
+from mcp_devbench.utils.exceptions import (
+    ContainerNotFoundError,
+    DockerAPIError,
+    ImageNotFoundError,
+)
+
+class DockerRuntime(ContainerRuntime):
+    """Docker container runtime implementation."""
+
+    def __init__(self, docker_host: str | None = None):
+        """Initialize Docker runtime.
+
+        Args:
+            docker_host: Docker daemon URL (default: unix://var/run/docker.sock)
+        """
+        self._docker_host = docker_host
+        self._client: aiodocker.Docker | None = None
+
+    async def initialize(self) -> None:
+        """Initialize connection to Docker daemon."""
+        if self._client is None:
+            self._client = aiodocker.Docker(url=self._docker_host)
+
+    async def close(self) -> None:
+        """Close connection to Docker daemon."""
+        if self._client:
+            await self._client.close()
+            self._client = None
+
+    async def ping(self) -> bool:
+        """Check if Docker daemon is available."""
+        try:
+            await self._client.ping()
+            return True
+        except Exception:
+            return False
+
+    async def create_container(self, config: ContainerConfig) -> str:
+        """Create a Docker container."""
+        # Convert runtime-agnostic config to Docker-specific config
+        docker_config = {
+            "Image": config.image,
+            "Labels": config.labels or {},
+            "Env": [f"{k}={v}" for k, v in (config.env or {}).items()],
+        }
+
+        if config.name:
+            docker_config["name"] = config.name
+        if config.cmd:
+            docker_config["Cmd"] = config.cmd
+        if config.user:
+            docker_config["User"] = config.user
+        if config.working_dir:
+            docker_config["WorkingDir"] = config.working_dir
+
+        # Build host config
+        host_config = {}
+        if config.memory_limit:
+            host_config["Memory"] = config.memory_limit
+        if config.cpu_limit:
+            host_config["NanoCpus"] = int(config.cpu_limit * 1e9)
+        if config.read_only_rootfs:
+            host_config["ReadonlyRootfs"] = True
+        if config.capabilities_drop:
+            host_config["CapDrop"] = config.capabilities_drop
+        if config.capabilities_add:
+            host_config["CapAdd"] = config.capabilities_add
+        if config.volumes:
+            host_config["Binds"] = [
+                f"{k}:{v['bind']}:{v.get('mode', 'rw')}"
+                for k, v in config.volumes.items()
+            ]
+
+        if host_config:
+            docker_config["HostConfig"] = host_config
+
+        try:
+            container = await self._client.containers.create(config=docker_config)
+            return container.id
+        except DockerError as e:
+            if "404" in str(e):
+                raise ImageNotFoundError(f"Image {config.image} not found")
+            raise DockerAPIError(f"Failed to create container: {e}")
+
+    async def start_container(self, container_id: str) -> None:
+        """Start a Docker container."""
+        try:
+            container = await self._client.containers.get(container_id)
+            await container.start()
+        except DockerError as e:
+            if "404" in str(e):
+                raise ContainerNotFoundError(container_id)
+            raise DockerAPIError(f"Failed to start container: {e}")
+
+    async def stop_container(self, container_id: str, timeout: int = 10) -> None:
+        """Stop a Docker container."""
+        try:
+            container = await self._client.containers.get(container_id)
+            await container.stop(timeout=timeout)
+        except DockerError as e:
+            if "404" in str(e):
+                raise ContainerNotFoundError(container_id)
+            raise DockerAPIError(f"Failed to stop container: {e}")
+
+    async def remove_container(self, container_id: str, force: bool = False) -> None:
+        """Remove a Docker container."""
+        try:
+            container = await self._client.containers.get(container_id)
+            await container.delete(force=force)
+        except DockerError as e:
+            if "404" in str(e):
+                raise ContainerNotFoundError(container_id)
+            raise DockerAPIError(f"Failed to remove container: {e}")
+
+    async def get_container(self, container_id: str) -> ContainerInfo:
+        """Get Docker container information."""
+        try:
+            container = await self._client.containers.get(container_id)
+            info = await container.show()
+
+            return ContainerInfo(
+                id=info["Id"],
+                name=info["Name"].lstrip("/"),
+                status=info["State"]["Status"],
+                image=info["Config"]["Image"],
+                created_at=info["Created"],
+                labels=info["Config"].get("Labels", {}),
+            )
+        except DockerError as e:
+            if "404" in str(e):
+                raise ContainerNotFoundError(container_id)
+            raise DockerAPIError(f"Failed to get container: {e}")
+
+    async def list_containers(
+        self,
+        all: bool = False,
+        filters: Dict[str, str] | None = None
+    ) -> List[ContainerInfo]:
+        """List Docker containers."""
+        try:
+            docker_filters = {}
+            if filters:
+                docker_filters = {"label": [f"{k}={v}" for k, v in filters.items()]}
+
+            containers = await self._client.containers.list(
+                all=all,
+                filters=docker_filters
+            )
+
+            return [
+                ContainerInfo(
+                    id=c["Id"],
+                    name=c["Names"][0].lstrip("/") if c["Names"] else "",
+                    status=c["State"],
+                    image=c["Image"],
+                    created_at=str(c["Created"]),
+                    labels=c.get("Labels", {}),
+                )
+                for c in containers
+            ]
+        except DockerError as e:
+            raise DockerAPIError(f"Failed to list containers: {e}")
+
+    async def exec_create(self, container_id: str, config: ExecConfig) -> str:
+        """Create a Docker exec instance."""
+        try:
+            container = await self._client.containers.get(container_id)
+
+            exec_config = {
+                "Cmd": config.cmd,
+                "AttachStdout": config.attach_stdout,
+                "AttachStderr": config.attach_stderr,
+            }
+
+            if config.user:
+                exec_config["User"] = config.user
+            if config.env:
+                exec_config["Env"] = [f"{k}={v}" for k, v in config.env.items()]
+            if config.working_dir:
+                exec_config["WorkingDir"] = config.working_dir
+
+            exec_instance = await container.exec(exec_config)
+            return exec_instance["Id"]
+        except DockerError as e:
+            if "404" in str(e):
+                raise ContainerNotFoundError(container_id)
+            raise DockerAPIError(f"Failed to create exec: {e}")
+
+    async def exec_start(
+        self,
+        exec_id: str,
+        stream: bool = False
+    ) -> ExecResult | AsyncIterator[bytes]:
+        """Start a Docker exec instance."""
+        try:
+            if stream:
+                # Return async iterator for streaming
+                exec_stream = await self._client.execs.start(exec_id, detach=False)
+                return exec_stream
+            else:
+                # Collect all output
+                exec_stream = await self._client.execs.start(exec_id, detach=False)
+                stdout = bytearray()
+                stderr = bytearray()
+
+                async for message in exec_stream:
+                    # aiodocker returns dict with stream info
+                    if isinstance(message, dict):
+                        stream_type = message.get("stream", "stdout")
+                        data = message.get("data", b"")
+                    else:
+                        stream_type = "stdout"
+                        data = message
+
+                    if stream_type == "stdout":
+                        stdout.extend(data)
+                    else:
+                        stderr.extend(data)
+
+                # Get exit code
+                inspect = await self._client.execs.inspect(exec_id)
+                exit_code = inspect.get("ExitCode", 0)
+
+                return ExecResult(
+                    exit_code=exit_code,
+                    stdout=bytes(stdout),
+                    stderr=bytes(stderr),
+                )
+        except DockerError as e:
+            raise DockerAPIError(f"Failed to start exec: {e}")
+
+    async def exec_inspect(self, exec_id: str) -> Dict[str, Any]:
+        """Inspect a Docker exec instance."""
+        try:
+            return await self._client.execs.inspect(exec_id)
+        except DockerError as e:
+            raise DockerAPIError(f"Failed to inspect exec: {e}")
+
+    async def pull_image(
+        self,
+        image: str,
+        auth: Dict[str, str] | None = None
+    ) -> AsyncIterator[Dict[str, Any]]:
+        """Pull a Docker image."""
+        try:
+            async for progress in self._client.images.pull(
+                from_image=image,
+                auth=auth,
+                stream=True
+            ):
+                yield progress
+        except DockerError as e:
+            raise ImageNotFoundError(f"Failed to pull image {image}: {e}")
+
+    async def image_exists(self, image: str) -> bool:
+        """Check if a Docker image exists locally."""
+        try:
+            await self._client.images.inspect(image)
+            return True
+        except DockerError:
+            return False
+
+    async def get_stats(
+        self,
+        container_id: str,
+        stream: bool = False
+    ) -> Dict[str, Any] | AsyncIterator[Dict[str, Any]]:
+        """Get Docker container statistics."""
+        try:
+            container = await self._client.containers.get(container_id)
+
+            if stream:
+                # Return async iterator
+                return container.stats(stream=True)
+            else:
+                # Return single snapshot
+                return await container.stats(stream=False)
+        except DockerError as e:
+            if "404" in str(e):
+                raise ContainerNotFoundError(container_id)
+            raise DockerAPIError(f"Failed to get stats: {e}")
+```
+
+**Files to Create:**
+- `src/mcp_devbench/runtime/docker_runtime.py`
+
+**Success Criteria:**
+- Complete Docker runtime implementation
+- All interface methods implemented
+- Proper error handling and conversion
+
+---
+
+#### E7-F3: Refactor Managers to Use Runtime Interface
+
+**Description:** Update all managers to use the abstracted runtime interface.
+
+**Implementation:**
+```python
+# src/mcp_devbench/managers/container_manager.py
+
+from mcp_devbench.runtime.interface import ContainerRuntime, ContainerConfig
+from mcp_devbench.runtime.docker_runtime import DockerRuntime
+
+class ContainerManager:
+    """Manager for container lifecycle operations (runtime-agnostic)."""
+
+    def __init__(self, runtime: ContainerRuntime | None = None):
+        """Initialize container manager.
+
+        Args:
+            runtime: Container runtime implementation (defaults to Docker)
+        """
+        self.settings = get_settings()
+        self.runtime = runtime or DockerRuntime(docker_host=self.settings.docker_host)
+        self.db_manager = get_db_manager()
+        self.image_policy = get_image_policy_manager()
+        self.security = get_security_manager()
+
+    async def create_container(
+        self,
+        image: str,
+        alias: str | None = None,
+        persistent: bool = False,
+        ttl_s: int | None = None,
+    ) -> Container:
+        """Create a new container using runtime abstraction."""
+
+        # Validate and resolve image
+        resolved = await self.image_policy.resolve_image(image)
+        actual_image = resolved.resolved_ref
+
+        # Generate opaque ID
+        container_id = f"c_{uuid4()}"
+
+        # Build runtime-agnostic container config
+        config = ContainerConfig(
+            image=actual_image,
+            name=container_id,
+            labels={
+                "com.mcp.devbench": "true",
+                "com.mcp.container_id": container_id,
+            },
+            user="1000",
+            memory_limit=512 * 1024 * 1024,  # 512MB
+            cpu_limit=1.0,
+            read_only_rootfs=True,
+            capabilities_drop=["ALL"],
+            volumes={
+                f"mcpdevbench_{'persist' if persistent else 'transient'}_{container_id}": {
+                    "bind": "/workspace",
+                    "mode": "rw"
+                }
+            }
+        )
+
+        if alias:
+            config.labels["com.mcp.alias"] = alias
+
+        # Create container using runtime
+        docker_id = await self.runtime.create_container(config)
+
+        # Store in database
+        container = Container(
+            id=container_id,
+            docker_id=docker_id,
+            image=actual_image,
+            alias=alias,
+            persistent=persistent,
+            status="created",
+            # ... rest of fields
+        )
+
+        async with self.db_manager.get_session() as session:
+            repo = ContainerRepository(session)
+            await repo.create(container)
+
+        return container
+
+    async def start_container(self, container_id: str):
+        """Start a container using runtime abstraction."""
+        async with self.db_manager.get_session() as session:
+            repo = ContainerRepository(session)
+            container = await repo.get(container_id)
+
+            if not container:
+                raise ContainerNotFoundError(container_id)
+
+            # Start using runtime
+            await self.runtime.start_container(container.docker_id)
+
+            # Update status
+            container.status = "running"
+            await repo.update(container)
+```
+
+**Files to Modify:**
+- `src/mcp_devbench/managers/container_manager.py`
+- `src/mcp_devbench/managers/exec_manager.py`
+- `src/mcp_devbench/managers/image_policy_manager.py`
+- All tests to inject runtime mock
+
+**Success Criteria:**
+- All managers use runtime interface
+- No direct Docker SDK calls in managers
+- Easy to swap runtimes
+
+---
+
+#### E7-F4: Runtime Factory and Configuration
+
+**Description:** Factory pattern for selecting runtime based on configuration.
+
+**Implementation:**
+```python
+# src/mcp_devbench/runtime/factory.py
+
+from mcp_devbench.runtime.interface import ContainerRuntime
+from mcp_devbench.runtime.docker_runtime import DockerRuntime
+from mcp_devbench.config import get_settings
+
+def create_runtime() -> ContainerRuntime:
+    """Create container runtime based on configuration.
+
+    Returns:
+        Configured container runtime instance
+    """
+    settings = get_settings()
+    runtime_type = settings.container_runtime  # New config option
+
+    if runtime_type == "docker":
+        return DockerRuntime(docker_host=settings.docker_host)
+    elif runtime_type == "podman":
+        # Future: PodmanRuntime(...)
+        raise NotImplementedError("Podman runtime not yet implemented")
+    elif runtime_type == "kubernetes":
+        # Future: KubernetesRuntime(...)
+        raise NotImplementedError("Kubernetes runtime not yet implemented")
+    else:
+        raise ValueError(f"Unknown runtime type: {runtime_type}")
+
+# Global runtime instance
+_runtime: ContainerRuntime | None = None
+
+def get_runtime() -> ContainerRuntime:
+    """Get or create global runtime instance."""
+    global _runtime
+
+    if _runtime is None:
+        _runtime = create_runtime()
+
+    return _runtime
+
+async def close_runtime():
+    """Close global runtime instance."""
+    global _runtime
+
+    if _runtime is not None:
+        await _runtime.close()
+        _runtime = None
+```
+
+**Configuration:**
+```python
+# src/mcp_devbench/config/settings.py
+
+class Settings(BaseSettings):
+    # ... existing fields ...
+
+    container_runtime: Literal["docker", "podman", "kubernetes"] = Field(
+        default="docker",
+        description="Container runtime to use (docker, podman, kubernetes)",
+    )
+```
+
+**Files to Create:**
+- `src/mcp_devbench/runtime/factory.py`
+
+**Files to Modify:**
+- `src/mcp_devbench/config/settings.py`
+
+**Success Criteria:**
+- Runtime selected via configuration
+- Easy to add new runtimes
+- Global runtime instance managed
+
+---
+
+### Benefits Summary
+
+**Immediate:**
+- Cleaner separation of concerns
+- Easier to test (mock runtime)
+- Better error handling
+
+**Future:**
+- Add Podman runtime support
+- Add Kubernetes CRD controller
+- Cloud provider integrations (AWS ECS, Azure Container Instances)
+
+**Migration Path:**
+1. Define interface (E7-F1)
+2. Implement Docker adapter (E7-F2)
+3. Refactor managers (E7-F3)
+4. Add factory (E7-F4)
+5. Add tests with mocked runtime
+6. Update documentation
+
+---
+
 ## Priority Matrix
 
 | Epic | Priority | Impact | Effort | Timeline | Dependencies |
 |------|----------|--------|--------|----------|--------------|
 | **Quick Wins** | P0 | High | Low | 1-2 weeks | None |
-| **Epic 1: Testing** | P0 | High | Medium | 3-4 weeks | Quick Wins |
-| **Epic 2: Performance** | P0 | High | Medium | 2-3 weeks | Quick Wins |
-| **Epic 3: Database** | P1 | High | High | 4-6 weeks | E2-F1 |
-| **Epic 4: Documentation** | P1 | Medium | Low | 2 weeks | None |
-| **Epic 5: Security** | P2 | High | Medium | 3-4 weeks | E2-F1 |
-| **Epic 6: Features** | P2 | Medium | High | 4 weeks | E2-F1, E3-F1 |
+| **Epic 1: Documentation** | P0 | High | Low-Medium | 2-3 weeks | None |
+| **Epic 2: Testing** | P0 | High | Medium-High | 3-4 weeks | Quick Wins |
+| **Epic 3: Performance (aiodocker)** | P0 | High | Medium | 2-3 weeks | Quick Wins |
+| **Epic 4: Database & Scale** | P1 | High | High | 4-6 weeks | E3-F1 |
+| **Epic 5: Security** | P1-P2 | High | Medium-High | 3-4 weeks | E3-F1 |
+| **Epic 6: Advanced Features** | P2 | Medium | High | 4 weeks | E3-F1, E4-F1 |
+| **Epic 7: Runtime Abstraction** | P1 | High | High | 4-6 weeks | E3-F1 |
+
+### Priority Definitions
+
+- **P0 (Critical)**: Essential for production readiness, implement immediately
+- **P1 (High)**: Important for scalability and flexibility, implement soon
+- **P2 (Medium)**: Nice-to-have features, implement when resources available
+
+### Recommended Implementation Order
+
+**Phase 1 (Weeks 1-4): Foundation** - P0 items
+1. Quick Wins (QW-1 through QW-8)
+2. Epic 1: Documentation & mkdocs website
+3. Start Epic 2: Testing framework
+4. Start Epic 3: aiodocker migration
+
+**Phase 2 (Weeks 5-10): Scale & Performance** - P0-P1 completion
+5. Complete Epic 2: Testing
+6. Complete Epic 3: Performance with aiodocker
+7. Epic 4: PostgreSQL + distributed locking
+8. Epic 7: Runtime abstraction (enables future flexibility)
+
+**Phase 3 (Weeks 11-16): Enterprise Features** - P1-P2 items
+9. Epic 5: Advanced security policies
+10. Epic 6: Container stats, snapshots, etc.
 
 ---
 
