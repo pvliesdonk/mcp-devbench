@@ -128,8 +128,9 @@ async def test_reconcile_handles_orphaned_transients(reconciliation_manager):
         status="stopped",
     )
 
-    from mcp_devbench.repositories.containers import ContainerRepository
     from docker.errors import NotFound
+
+    from mcp_devbench.repositories.containers import ContainerRepository
 
     with patch.object(ContainerRepository, "list_all", new_callable=AsyncMock) as mock_list:
         with patch.object(

@@ -1,19 +1,26 @@
 """Background maintenance manager for periodic tasks."""
 
 import asyncio
-from datetime import datetime, timedelta, timezone
 
 from docker import DockerClient
+from docker.errors import NotFound
 
 from mcp_devbench.config import get_settings
 from mcp_devbench.models.database import get_db_manager
-from mcp_devbench.repositories.attachments import AttachmentRepository
 from mcp_devbench.repositories.containers import ContainerRepository
 from mcp_devbench.repositories.execs import ExecRepository
 from mcp_devbench.utils import get_logger
+from mcp_devbench.utils.cleanup import cleanup_orphaned_transients
 from mcp_devbench.utils.docker_client import get_docker_client
 
 logger = get_logger(__name__)
+
+# Maintenance task intervals (in seconds)
+MAINTENANCE_INTERVAL_SECONDS = 3600  # 1 hour
+MAINTENANCE_ERROR_RETRY_SECONDS = 60  # 1 minute
+
+# Cleanup retention periods
+EXEC_RETENTION_HOURS = 24  # 24 hours
 
 
 class MaintenanceManager:
@@ -48,6 +55,7 @@ class MaintenanceManager:
             try:
                 await self._task
             except asyncio.CancelledError:
+                # Task cancellation is expected during shutdown
                 pass
         logger.info("Maintenance manager stopped")
 
@@ -57,12 +65,12 @@ class MaintenanceManager:
             try:
                 # Run maintenance tasks hourly
                 await self.run_maintenance()
-                await asyncio.sleep(3600)  # 1 hour
+                await asyncio.sleep(MAINTENANCE_INTERVAL_SECONDS)
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.error("Maintenance task failed", extra={"error": str(e)})
-                await asyncio.sleep(60)  # Retry after 1 minute on error
+                await asyncio.sleep(MAINTENANCE_ERROR_RETRY_SECONDS)
 
     async def run_maintenance(self) -> dict:
         """
@@ -119,40 +127,11 @@ class MaintenanceManager:
         logger.info("Cleaning up orphaned transient containers")
 
         try:
-            cutoff_days = self.settings.transient_gc_days
-            cutoff = datetime.now(timezone.utc) - timedelta(days=cutoff_days)
-
             async with self.db_manager.get_session() as session:
                 repo = ContainerRepository(session)
-                transients = await repo.list_by_status("stopped", persistent=False)
-
-                cleaned = 0
-                for container in transients:
-                    if container.last_seen < cutoff:
-                        try:
-                            # Try to remove Docker container if it exists
-                            try:
-                                docker_container = self.docker_client.containers.get(
-                                    container.docker_id
-                                )
-                                docker_container.remove(force=True)
-                            except Exception:
-                                pass  # Container may already be gone
-
-                            # Remove from database
-                            await repo.delete(container.id)
-                            cleaned += 1
-
-                            logger.info(
-                                "Cleaned up orphaned transient",
-                                extra={"container_id": container.id},
-                            )
-                        except Exception as e:
-                            logger.error(
-                                "Failed to clean up transient",
-                                extra={"container_id": container.id, "error": str(e)},
-                            )
-
+                cleaned = await cleanup_orphaned_transients(
+                    self.docker_client, repo, self.settings.transient_gc_days
+                )
                 return cleaned
 
         except Exception as e:
@@ -172,8 +151,8 @@ class MaintenanceManager:
             async with self.db_manager.get_session() as session:
                 exec_repo = ExecRepository(session)
 
-                # Clean up execs older than 24 hours
-                cleaned = await exec_repo.cleanup_old(hours=24)
+                # Clean up execs older than configured retention period
+                cleaned = await exec_repo.cleanup_old(hours=EXEC_RETENTION_HOURS)
 
                 logger.info("Cleaned up old execs", extra={"count": cleaned})
                 return cleaned
@@ -192,14 +171,11 @@ class MaintenanceManager:
         logger.info("Cleaning up abandoned attachments")
 
         try:
-            async with self.db_manager.get_session() as session:
-                attachment_repo = AttachmentRepository(session)
-
-                # Get all attachments
-                # In a full implementation, we would identify abandoned ones
-                # For now, just log
-                logger.info("Attachment cleanup completed")
-                return 0
+            # Get all attachments
+            # In a full implementation, we would identify abandoned ones
+            # For now, just log
+            logger.info("Attachment cleanup completed")
+            return 0
 
         except Exception as e:
             logger.error("Failed to clean up attachments", extra={"error": str(e)})
@@ -250,7 +226,7 @@ class MaintenanceManager:
 
                         synced += 1
 
-                    except Exception:
+                    except NotFound:
                         # Container doesn't exist, mark as stopped
                         if container.status != "stopped":
                             await repo.update_status(container.id, "stopped")
@@ -273,8 +249,11 @@ class MaintenanceManager:
 
         try:
             async with self.db_manager.get_session() as session:
-                # Execute VACUUM command
-                await session.execute("VACUUM")
+                from sqlalchemy import text
+
+                # Execute VACUUM command using raw SQL
+                await session.execute(text("VACUUM"))
+                await session.commit()
                 logger.info("Database vacuumed successfully")
 
         except Exception as e:
@@ -305,7 +284,6 @@ class MaintenanceManager:
                 health["containers_count"] = len(containers)
 
                 # Count active execs
-                exec_repo = ExecRepository(session)
                 # In a full implementation, would count incomplete execs
                 health["active_execs"] = 0
 

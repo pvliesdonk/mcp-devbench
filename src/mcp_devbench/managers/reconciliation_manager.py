@@ -1,18 +1,18 @@
 """Reconciliation manager for boot recovery and state synchronization."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import List
 
 from docker import DockerClient
-from docker.errors import APIError, NotFound
+from docker.errors import APIError
 from docker.models.containers import Container as DockerContainer
 
 from mcp_devbench.config import get_settings
 from mcp_devbench.models.containers import Container
 from mcp_devbench.models.database import get_db_manager
 from mcp_devbench.repositories.containers import ContainerRepository
-from mcp_devbench.repositories.execs import ExecRepository
 from mcp_devbench.utils import get_logger
+from mcp_devbench.utils.cleanup import cleanup_orphaned_transients
 from mcp_devbench.utils.docker_client import get_docker_client
 
 logger = get_logger(__name__)
@@ -228,50 +228,10 @@ class ReconciliationManager:
         Returns:
             Number of containers cleaned up
         """
-        cutoff_days = self.settings.transient_gc_days
-        cutoff = datetime.now(timezone.utc) - timedelta(days=cutoff_days)
-
         repo = ContainerRepository(session)
-        transients = await repo.list_by_status("stopped", persistent=False)
-
-        cleaned = 0
-        for container in transients:
-            # Check if container is old enough
-            if container.last_seen < cutoff:
-                try:
-                    # Try to remove Docker container if it exists
-                    try:
-                        docker_container = self.docker_client.containers.get(
-                            container.docker_id
-                        )
-                        docker_container.remove(force=True)
-                        logger.info(
-                            "Removed orphaned Docker container",
-                            extra={
-                                "container_id": container.id,
-                                "docker_id": container.docker_id,
-                            },
-                        )
-                    except NotFound:
-                        pass
-
-                    # Remove from database
-                    await repo.delete(container.id)
-                    cleaned += 1
-
-                    logger.info(
-                        "Cleaned up orphaned transient container",
-                        extra={
-                            "container_id": container.id,
-                            "age_days": (datetime.now(timezone.utc) - container.last_seen).days,
-                        },
-                    )
-                except Exception as e:
-                    logger.error(
-                        "Failed to clean up orphaned container",
-                        extra={"container_id": container.id, "error": str(e)},
-                    )
-
+        cleaned = await cleanup_orphaned_transients(
+            self.docker_client, repo, self.settings.transient_gc_days
+        )
         return cleaned
 
     async def _cleanup_incomplete_execs(self, session) -> None:
@@ -281,14 +241,19 @@ class ReconciliationManager:
         Args:
             session: Database session
         """
-        exec_repo = ExecRepository(session)
-
         # Get all incomplete execs (no end time)
         # For simplicity, we'll just log this for now
         # A full implementation would query for incomplete execs and mark them
         logger.info("Incomplete exec cleanup completed")
 
 
+# Global instance
+_reconciliation_manager: ReconciliationManager | None = None
+
+
 def get_reconciliation_manager() -> ReconciliationManager:
-    """Get reconciliation manager instance."""
-    return ReconciliationManager()
+    """Get or create reconciliation manager instance."""
+    global _reconciliation_manager
+    if _reconciliation_manager is None:
+        _reconciliation_manager = ReconciliationManager()
+    return _reconciliation_manager

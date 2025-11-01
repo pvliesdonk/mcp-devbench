@@ -102,14 +102,12 @@ class ExecRepository(BaseRepository[Exec]):
         Returns:
             Number of execs deleted
         """
-        from datetime import timedelta
+        from datetime import timedelta, timezone
 
-        cutoff = datetime.utcnow() - timedelta(hours=hours)
-        stmt = select(Exec).where(Exec.ended_at.is_not(None), Exec.ended_at < cutoff)
+        from sqlalchemy import delete
+
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        stmt = delete(Exec).where(Exec.ended_at.is_not(None), Exec.ended_at < cutoff)
         result = await self.session.execute(stmt)
-        old_execs = list(result.scalars().all())
 
-        for exec_entry in old_execs:
-            await self.delete(exec_entry.id)
-
-        return len(old_execs)
+        return result.rowcount

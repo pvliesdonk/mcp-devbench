@@ -85,23 +85,6 @@ async def test_shutdown_preserves_persistent_containers(shutdown_coordinator):
     """Test that shutdown does not stop persistent containers."""
     coordinator, session = shutdown_coordinator
 
-    # Create mock persistent container
-    from datetime import datetime, timezone
-
-    persistent = Container(
-        id="c_persistent",
-        docker_id="docker456",
-        alias="my-container",
-        image="python:3.11-slim",
-        digest=None,
-        persistent=True,
-        created_at=datetime.now(timezone.utc),
-        last_seen=datetime.now(timezone.utc),
-        ttl_s=None,
-        volume_name="mcpdevbench_persist_c_persistent",
-        status="running",
-    )
-
     from mcp_devbench.managers.container_manager import ContainerManager
     from mcp_devbench.repositories.containers import ContainerRepository
 
