@@ -70,7 +70,10 @@ class ContainerRepository(BaseRepository[Container]):
         return await self.get_by_alias(identifier)
 
     async def list_by_status(
-        self, status: str | None = None, include_stopped: bool = False, persistent: bool | None = None
+        self,
+        status: str | None = None,
+        include_stopped: bool = False,
+        persistent: bool | None = None,
     ) -> List[Container]:
         """
         List containers by status.

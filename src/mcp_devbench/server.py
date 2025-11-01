@@ -50,7 +50,6 @@ from mcp_devbench.models.attachments import Attachment
 from mcp_devbench.models.database import close_db, get_db_manager, init_db
 from mcp_devbench.repositories.attachments import AttachmentRepository
 from mcp_devbench.repositories.containers import ContainerRepository
-from mcp_devbench.repositories.execs import ExecRepository
 from mcp_devbench.utils import get_logger, setup_logging
 from mcp_devbench.utils.audit_logger import AuditEventType, get_audit_logger
 from mcp_devbench.utils.docker_client import close_docker_client, get_docker_client

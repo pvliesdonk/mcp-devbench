@@ -1,8 +1,6 @@
 """Shutdown coordinator for graceful server shutdown."""
 
 import asyncio
-import signal
-from typing import Callable
 
 from mcp_devbench.config import get_settings
 from mcp_devbench.managers.container_manager import ContainerManager
@@ -160,24 +158,3 @@ def get_shutdown_coordinator() -> ShutdownCoordinator:
     if _shutdown_coordinator is None:
         _shutdown_coordinator = ShutdownCoordinator()
     return _shutdown_coordinator
-
-
-def setup_signal_handlers(shutdown_handler: Callable[[], None]) -> None:
-    """
-    Set up signal handlers for graceful shutdown.
-
-    Args:
-        shutdown_handler: Function to call on SIGTERM/SIGINT
-    """
-
-    def signal_handler(signum, frame):
-        """Handle shutdown signals."""
-        sig_name = signal.Signals(signum).name
-        logger.info(f"Received {sig_name} signal, initiating shutdown")
-        shutdown_handler()
-
-    # Register handlers for SIGTERM and SIGINT
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGINT, signal_handler)
-
-    logger.info("Signal handlers registered for graceful shutdown")
