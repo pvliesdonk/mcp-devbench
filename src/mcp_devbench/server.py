@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from fastmcp import FastMCP
 from pydantic import BaseModel
 
+from mcp_devbench.auth import create_auth_provider
 from mcp_devbench.config import get_settings
 from mcp_devbench.managers.container_manager import ContainerManager
 from mcp_devbench.managers.exec_manager import ExecManager
@@ -71,7 +72,8 @@ class HealthCheckResponse(BaseModel):
     version: str = "0.1.0"
 
 
-# Initialize FastMCP server
+# Initialize FastMCP server without authentication initially
+# Auth provider will be set in main() after settings are loaded
 mcp = FastMCP("MCP DevBench")
 logger = get_logger(__name__)
 
@@ -988,18 +990,48 @@ def main() -> None:
     """Main entry point for the MCP DevBench server."""
     settings = get_settings()
 
+    # Setup logging first so auth initialization can be properly logged
+    setup_logging(log_level=settings.log_level, log_format=settings.log_format)
+
+    # Initialize authentication provider after settings and logging are configured
+    auth_provider = create_auth_provider()
+
+    # Set the auth provider on the FastMCP server
+    mcp.auth = auth_provider
+
     logger.info(
         "Starting server",
         extra={
-            "host": settings.host,
-            "port": settings.port,
+            "transport": settings.transport_mode,
+            "auth_mode": settings.auth_mode,
+            "host": settings.host if settings.transport_mode != "stdio" else "N/A",
+            "port": settings.port if settings.transport_mode != "stdio" else "N/A",
             "allowed_registries": settings.allowed_registries_list,
         },
     )
 
     try:
-        # Run the FastMCP server with streamable HTTP transport
-        mcp.run(transport="streamable", host=settings.host, port=settings.port)
+        # Map config transport mode to FastMCP transport parameter
+        # FastMCP expects "streamable" for streamable-http mode
+        transport_map = {
+            "stdio": "stdio",
+            "sse": "sse",
+            "streamable-http": "streamable",
+        }
+
+        transport = transport_map[settings.transport_mode]
+
+        # Prepare run kwargs based on transport mode
+        run_kwargs = {"transport": transport}
+
+        # Add HTTP-specific settings for HTTP-based transports
+        if settings.transport_mode in ("sse", "streamable-http"):
+            run_kwargs["host"] = settings.host
+            run_kwargs["port"] = settings.port
+            run_kwargs["path"] = settings.path
+
+        # Run the FastMCP server with configured transport
+        mcp.run(**run_kwargs)
     except KeyboardInterrupt:
         logger.info("Received keyboard interrupt, shutting down")
         sys.exit(0)

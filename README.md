@@ -79,13 +79,80 @@ Configuration is managed through environment variables with the `MCP_` prefix:
 | `MCP_DOCKER_HOST` | (auto-detect) | Docker daemon host URL |
 | `MCP_LOG_LEVEL` | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) |
 | `MCP_LOG_FORMAT` | `json` | Log format (json or text) |
-| `MCP_HOST` | `0.0.0.0` | Server host to bind to |
-| `MCP_PORT` | `8000` | Server port to bind to |
+| `MCP_HOST` | `0.0.0.0` | Server host to bind to (for HTTP-based transports) |
+| `MCP_PORT` | `8000` | Server port to bind to (for HTTP-based transports) |
 | `MCP_DEFAULT_IMAGE_ALIAS` | `python:3.11-slim` | Default image for warm container pool |
 | `MCP_WARM_POOL_ENABLED` | `true` | Enable warm container pool for fast attach |
 | `MCP_WARM_HEALTH_CHECK_INTERVAL` | `60` | Interval in seconds for warm container health checks |
 
+### Transport Configuration
+
+MCP DevBench supports multiple transport modes:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MCP_TRANSPORT_MODE` | `streamable-http` | Transport protocol: `stdio`, `sse`, or `streamable-http` |
+| `MCP_PATH` | `/mcp` | Path for HTTP-based transports (sse or streamable-http) |
+
+**Transport Modes:**
+- `stdio`: Standard input/output for local desktop clients (Claude Desktop, Cursor, etc.)
+- `sse`: Server-Sent Events (legacy HTTP transport, use streamable-http instead)
+- `streamable-http`: Recommended HTTP transport with full bidirectional streaming support
+
+### Authentication Configuration
+
+MCP DevBench supports multiple authentication modes for securing your server:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MCP_AUTH_MODE` | `none` | Authentication mode: `none`, `bearer`, `oauth`, or `oidc` |
+| `MCP_BEARER_TOKEN` | (none) | Bearer token for `bearer` authentication mode |
+| `MCP_OAUTH_CLIENT_ID` | (none) | OAuth/OIDC client ID |
+| `MCP_OAUTH_CLIENT_SECRET` | (none) | OAuth/OIDC client secret |
+| `MCP_OAUTH_CONFIG_URL` | (none) | OIDC provider configuration URL (e.g., `https://auth.example.com/.well-known/openid-configuration`) |
+| `MCP_OAUTH_BASE_URL` | (none) | Base URL of this server for OAuth callbacks |
+| `MCP_OAUTH_REDIRECT_PATH` | `/auth/callback` | OAuth callback redirect path |
+| `MCP_OAUTH_AUDIENCE` | (none) | OAuth audience parameter (required by some providers like Auth0) |
+| `MCP_OAUTH_REQUIRED_SCOPES` | (empty) | Comma-separated list of required OAuth scopes |
+
+**Authentication Modes:**
+
+1. **none** (default): No authentication required
+   ```bash
+   MCP_AUTH_MODE=none
+   ```
+
+2. **bearer**: Simple bearer token authentication for API keys and service accounts
+   ```bash
+   MCP_AUTH_MODE=bearer
+   MCP_BEARER_TOKEN=your-secret-token-here
+   ```
+
+3. **oidc**: OpenID Connect authentication with automatic provider discovery
+   ```bash
+   MCP_AUTH_MODE=oidc
+   MCP_OAUTH_CLIENT_ID=your-client-id
+   MCP_OAUTH_CLIENT_SECRET=your-client-secret
+   MCP_OAUTH_CONFIG_URL=https://your-provider.com/.well-known/openid-configuration
+   MCP_OAUTH_BASE_URL=https://your-server.com
+   MCP_OAUTH_REDIRECT_PATH=/auth/callback
+   # Optional:
+   MCP_OAUTH_AUDIENCE=https://api.your-server.com
+   MCP_OAUTH_REQUIRED_SCOPES=read,write,admin
+   ```
+
+4. **oauth**: Not directly supported - use `oidc` mode instead for OAuth providers with OIDC discovery support
+
+**OIDC Provider Examples:**
+
+- **Auth0**: Use `https://YOUR_DOMAIN.auth0.com/.well-known/openid-configuration`
+- **Google**: Use `https://accounts.google.com/.well-known/openid-configuration`
+- **Azure AD**: Use `https://login.microsoftonline.com/YOUR_TENANT_ID/v2.0/.well-known/openid-configuration`
+- **Keycloak**: Use `https://YOUR_KEYCLOAK_DOMAIN/realms/YOUR_REALM/.well-known/openid-configuration`
+
 ### Example .env file
+
+**Basic configuration (no auth, HTTP transport):**
 ```bash
 MCP_ALLOWED_REGISTRIES=docker.io,ghcr.io,registry.example.com
 MCP_STATE_DB=/data/state.db
@@ -93,6 +160,40 @@ MCP_LOG_LEVEL=DEBUG
 MCP_LOG_FORMAT=json
 MCP_DEFAULT_IMAGE_ALIAS=python:3.11-slim
 MCP_WARM_POOL_ENABLED=true
+MCP_TRANSPORT_MODE=streamable-http
+MCP_HOST=0.0.0.0
+MCP_PORT=8000
+MCP_PATH=/mcp
+```
+
+**With bearer token authentication:**
+```bash
+MCP_TRANSPORT_MODE=streamable-http
+MCP_HOST=0.0.0.0
+MCP_PORT=8000
+MCP_AUTH_MODE=bearer
+MCP_BEARER_TOKEN=my-secret-api-key-12345
+```
+
+**With OIDC authentication (Auth0 example):**
+```bash
+MCP_TRANSPORT_MODE=streamable-http
+MCP_HOST=0.0.0.0
+MCP_PORT=8000
+MCP_AUTH_MODE=oidc
+MCP_OAUTH_CLIENT_ID=your-auth0-client-id
+MCP_OAUTH_CLIENT_SECRET=your-auth0-client-secret
+MCP_OAUTH_CONFIG_URL=https://your-tenant.auth0.com/.well-known/openid-configuration
+MCP_OAUTH_BASE_URL=https://your-mcp-server.com
+MCP_OAUTH_AUDIENCE=https://your-mcp-server.com/api
+MCP_OAUTH_REQUIRED_SCOPES=openid,profile,email
+```
+
+**STDIO transport for local use (e.g., Claude Desktop):**
+```bash
+MCP_TRANSPORT_MODE=stdio
+MCP_AUTH_MODE=none
+# Host and port are not used for stdio transport
 ```
 
 ## Development
