@@ -85,7 +85,6 @@ exclude_commit_patterns = []
 
 [tool.semantic_release.changelog.default_templates]
 changelog_file = "CHANGELOG.md"
-template_dir = "templates"
 
 [tool.semantic_release.changelog.environment]
 block_start_string = "{%"
