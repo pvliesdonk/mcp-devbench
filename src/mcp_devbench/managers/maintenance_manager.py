@@ -202,9 +202,7 @@ class MaintenanceManager:
                 for container in containers:
                     try:
                         # Check if container exists in Docker
-                        docker_container = self.docker_client.containers.get(
-                            container.docker_id
-                        )
+                        docker_container = self.docker_client.containers.get(container.docker_id)
 
                         # Update last_seen
                         await repo.update_last_seen(container.id)

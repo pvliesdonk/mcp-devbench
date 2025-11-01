@@ -121,9 +121,7 @@ class ReconciliationManager:
             logger.error("Failed to discover containers", extra={"error": str(e)})
             return []
 
-    async def _adopt_container(
-        self, docker_container: DockerContainer, session
-    ) -> None:
+    async def _adopt_container(self, docker_container: DockerContainer, session) -> None:
         """
         Adopt a running container into the database.
 
@@ -145,9 +143,7 @@ class ReconciliationManager:
 
         # Determine if persistent based on volume name
         mounts = docker_container.attrs.get("Mounts", [])
-        persistent = any(
-            m.get("Name", "").startswith("mcpdevbench_persist_") for m in mounts
-        )
+        persistent = any(m.get("Name", "").startswith("mcpdevbench_persist_") for m in mounts)
 
         # Get volume name
         volume_name = None
@@ -195,9 +191,7 @@ class ReconciliationManager:
             },
         )
 
-    async def _cleanup_missing_container(
-        self, container: Container, session
-    ) -> None:
+    async def _cleanup_missing_container(self, container: Container, session) -> None:
         """
         Clean up a container that exists in DB but not in Docker.
 

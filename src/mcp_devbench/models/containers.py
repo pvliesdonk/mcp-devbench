@@ -48,9 +48,7 @@ class Container(Base):
     idempotency_key: Mapped[str | None] = mapped_column(
         String(255), unique=True, nullable=True, index=True
     )
-    idempotency_key_created_at: Mapped[datetime | None] = mapped_column(
-        DateTime, nullable=True
-    )
+    idempotency_key_created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     def __repr__(self) -> str:
         """String representation of Container."""

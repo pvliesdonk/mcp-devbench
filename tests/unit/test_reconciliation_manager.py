@@ -136,9 +136,7 @@ async def test_reconcile_handles_orphaned_transients(reconciliation_manager):
         with patch.object(
             ContainerRepository, "list_by_status", new_callable=AsyncMock
         ) as mock_list_status:
-            with patch.object(
-                ContainerRepository, "delete", new_callable=AsyncMock
-            ) as mock_delete:
+            with patch.object(ContainerRepository, "delete", new_callable=AsyncMock) as mock_delete:
                 mock_list.return_value = []
                 mock_list_status.return_value = [old_container]
 

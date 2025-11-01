@@ -70,9 +70,7 @@ async def test_shutdown_stops_transient_containers(shutdown_coordinator):
     from mcp_devbench.repositories.containers import ContainerRepository
 
     with patch.object(ContainerRepository, "list_by_status", new_callable=AsyncMock) as mock_list:
-        with patch.object(
-            ContainerManager, "stop_container", new_callable=AsyncMock
-        ) as mock_stop:
+        with patch.object(ContainerManager, "stop_container", new_callable=AsyncMock) as mock_stop:
             mock_list.return_value = [transient]
 
             await coordinator.initiate_shutdown()
@@ -89,9 +87,7 @@ async def test_shutdown_preserves_persistent_containers(shutdown_coordinator):
     from mcp_devbench.repositories.containers import ContainerRepository
 
     with patch.object(ContainerRepository, "list_by_status", new_callable=AsyncMock) as mock_list:
-        with patch.object(
-            ContainerManager, "stop_container", new_callable=AsyncMock
-        ) as mock_stop:
+        with patch.object(ContainerManager, "stop_container", new_callable=AsyncMock) as mock_stop:
             # Only return transient containers (not persistent)
             mock_list.return_value = []
 
@@ -158,9 +154,7 @@ async def test_shutdown_continues_on_error(shutdown_coordinator):
     from mcp_devbench.repositories.containers import ContainerRepository
 
     with patch.object(ContainerRepository, "list_by_status", new_callable=AsyncMock) as mock_list:
-        with patch.object(
-            ContainerManager, "stop_container", new_callable=AsyncMock
-        ) as mock_stop:
+        with patch.object(ContainerManager, "stop_container", new_callable=AsyncMock) as mock_stop:
             mock_list.return_value = [transient1, transient2]
 
             # First stop fails, second succeeds

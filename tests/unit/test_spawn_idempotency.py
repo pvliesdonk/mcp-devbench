@@ -1,10 +1,10 @@
 """Tests for spawn idempotency (QW-5)."""
 
-import pytest
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from mcp_devbench.managers.container_manager import ContainerManager
-from mcp_devbench.models.containers import Container
 from mcp_devbench.models.database import get_db_manager
 from mcp_devbench.repositories.containers import ContainerRepository
 

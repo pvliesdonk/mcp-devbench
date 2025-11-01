@@ -61,9 +61,7 @@ async def test_cleanup_orphaned_transients(maintenance_manager):
 
     from mcp_devbench.repositories.containers import ContainerRepository
 
-    with patch.object(
-        ContainerRepository, "list_by_status", new_callable=AsyncMock
-    ) as mock_list:
+    with patch.object(ContainerRepository, "list_by_status", new_callable=AsyncMock) as mock_list:
         with patch.object(ContainerRepository, "delete", new_callable=AsyncMock):
             mock_list.return_value = [old_container]
             docker_client.containers.get.side_effect = NotFound("Not found")
@@ -116,12 +114,8 @@ async def test_sync_container_state_updates_status(maintenance_manager):
 
     from mcp_devbench.repositories.containers import ContainerRepository
 
-    with patch.object(
-        ContainerRepository, "list_by_status", new_callable=AsyncMock
-    ) as mock_list:
-        with patch.object(
-            ContainerRepository, "update_last_seen", new_callable=AsyncMock
-        ):
+    with patch.object(ContainerRepository, "list_by_status", new_callable=AsyncMock) as mock_list:
+        with patch.object(ContainerRepository, "update_last_seen", new_callable=AsyncMock):
             with patch.object(
                 ContainerRepository, "update_status", new_callable=AsyncMock
             ) as mock_update:
@@ -160,9 +154,7 @@ async def test_sync_container_state_marks_missing_stopped(maintenance_manager):
 
     from mcp_devbench.repositories.containers import ContainerRepository
 
-    with patch.object(
-        ContainerRepository, "list_by_status", new_callable=AsyncMock
-    ) as mock_list:
+    with patch.object(ContainerRepository, "list_by_status", new_callable=AsyncMock) as mock_list:
         with patch.object(
             ContainerRepository, "update_status", new_callable=AsyncMock
         ) as mock_update:
@@ -185,9 +177,7 @@ async def test_check_health_returns_metrics(maintenance_manager):
     # Mock running containers
     from mcp_devbench.repositories.containers import ContainerRepository
 
-    with patch.object(
-        ContainerRepository, "list_by_status", new_callable=AsyncMock
-    ) as mock_list:
+    with patch.object(ContainerRepository, "list_by_status", new_callable=AsyncMock) as mock_list:
         mock_list.return_value = [MagicMock(), MagicMock()]
 
         health = await manager.check_health()
@@ -219,9 +209,7 @@ async def test_run_maintenance_returns_stats(maintenance_manager):
     from mcp_devbench.repositories.containers import ContainerRepository
     from mcp_devbench.repositories.execs import ExecRepository
 
-    with patch.object(
-        ContainerRepository, "list_by_status", new_callable=AsyncMock
-    ) as mock_list:
+    with patch.object(ContainerRepository, "list_by_status", new_callable=AsyncMock) as mock_list:
         with patch.object(ExecRepository, "cleanup_old", new_callable=AsyncMock) as mock_cleanup:
             with patch.object(session, "execute", new_callable=AsyncMock):
                 mock_list.return_value = []
