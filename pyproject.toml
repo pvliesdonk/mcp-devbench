@@ -74,16 +74,18 @@ version_toml = ["pyproject.toml:project.version"]
 branch = "main"
 build_command = "pip install uv && uv build"
 commit_message = "chore(release): {version}"
-commit_parser = "angular"
+commit_parser = "conventional"
 logging_use_named_masks = false
 major_on_zero = true
 tag_format = "v{version}"
 upload_to_vcs_release = true
 
 [tool.semantic_release.changelog]
-template_dir = "templates"
-changelog_file = "CHANGELOG.md"
 exclude_commit_patterns = []
+
+[tool.semantic_release.changelog.default_templates]
+changelog_file = "CHANGELOG.md"
+template_dir = "templates"
 
 [tool.semantic_release.changelog.environment]
 block_start_string = "{%"
