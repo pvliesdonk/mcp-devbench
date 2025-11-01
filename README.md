@@ -429,7 +429,7 @@ uv run ruff check .
 uv run ruff format .
 
 # Type checking (recommended)
-uv run mypy src/
+uv run pyright src/
 ```
 
 ### Project Structure
