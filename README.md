@@ -127,7 +127,7 @@ src/mcp_devbench/
 
 ## Project Status
 
-This project has completed **Epic 1: Foundation Layer**, **Epic 2: Command Execution Engine**, **Epic 3: Filesystem Operations**, **Epic 4: MCP Protocol Integration**, and **Epic 5: Image & Security Management**:
+This project has completed **Epic 1: Foundation Layer**, **Epic 2: Command Execution Engine**, **Epic 3: Filesystem Operations**, **Epic 4: MCP Protocol Integration**, **Epic 5: Image & Security Management**, and **Epic 6: State Management & Recovery**:
 
 ### Epic 1: Foundation Layer ✅
 - [x] Feature 1.1: Project Scaffold & Configuration
@@ -223,6 +223,30 @@ This project has completed **Epic 1: Foundation Layer**, **Epic 2: Command Execu
   - Workspace cleanup between uses
   - Configurable via MCP_WARM_POOL_ENABLED
 
+### Epic 6: State Management & Recovery ✅
+- [x] Feature 6.1: Graceful Shutdown
+  - ShutdownCoordinator for handling SIGTERM/SIGINT
+  - Drains active operations with configurable grace period (MCP_DRAIN_GRACE_S)
+  - Stops transient containers while preserving persistent ones
+  - Ensures state is flushed to disk
+  - Integrated into server lifespan
+
+- [x] Feature 6.2: Boot Recovery & Reconciliation
+  - ReconciliationManager for container discovery and adoption
+  - Discovers containers with com.mcp.devbench label on startup
+  - Adopts running containers not in database
+  - Cleans up orphaned transient containers based on MCP_TRANSIENT_GC_DAYS
+  - `reconcile` tool for manual reconciliation
+  - Handles Docker daemon restarts gracefully
+
+- [x] Feature 6.3: Background Maintenance
+  - MaintenanceManager for periodic tasks
+  - Hourly garbage collection of old transients
+  - Cleanup of completed execs older than 24h
+  - Periodic state sync with Docker
+  - Database vacuuming for optimization
+  - Health monitoring and metrics collection
+
 ### Current Status
 The project now has:
 - Full container lifecycle management with image policy enforcement
@@ -232,7 +256,10 @@ The project now has:
 - Image allow-list validation and resolution with digest pinning
 - Comprehensive security hardening (capability dropping, resource limits, audit logging)
 - Warm container pool for fast provisioning (<1s attach time)
-- 150 unit and integration tests passing (100% success rate)
+- **Graceful shutdown with operation draining**
+- **Boot recovery and automatic reconciliation**
+- **Background maintenance and health monitoring**
+- 170 unit and integration tests passing (100% success rate)
 - Comprehensive error handling and resource management
 
 ## MCP Tools Reference
@@ -400,6 +427,38 @@ List directory contents.
 **Output:**
 - `path` (string): Listed directory
 - `entries` (array): File/directory entries with metadata
+
+### Maintenance Tools
+
+#### `reconcile`
+Run container reconciliation to sync Docker state with database.
+
+This tool performs:
+- Discovery of containers with com.mcp.devbench label
+- Adoption of running containers not in database
+- Cleanup of stopped containers
+- Removal of orphaned transient containers
+- Cleanup of incomplete exec entries
+
+**Input:** None
+
+**Output:**
+- `discovered` (integer): Containers found with MCP label
+- `adopted` (integer): Containers added to database
+- `cleaned_up` (integer): Missing containers marked stopped
+- `orphaned` (integer): Old transients removed
+- `errors` (integer): Errors encountered
+
+**Example:**
+```json
+{
+  "discovered": 5,
+  "adopted": 1,
+  "cleaned_up": 2,
+  "orphaned": 1,
+  "errors": 0
+}
+```
 
 See [mcp-devbench-work-breakdown.md](mcp-devbench-work-breakdown.md) for the complete implementation roadmap.
 

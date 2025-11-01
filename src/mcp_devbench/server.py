@@ -11,7 +11,10 @@ from mcp_devbench.config import get_settings
 from mcp_devbench.managers.container_manager import ContainerManager
 from mcp_devbench.managers.exec_manager import ExecManager
 from mcp_devbench.managers.filesystem_manager import FilesystemManager
+from mcp_devbench.managers.maintenance_manager import get_maintenance_manager
 from mcp_devbench.managers.output_streamer import get_output_streamer
+from mcp_devbench.managers.reconciliation_manager import get_reconciliation_manager
+from mcp_devbench.managers.shutdown_coordinator import get_shutdown_coordinator
 from mcp_devbench.mcp_tools import (
     AttachInput,
     AttachOutput,
@@ -90,10 +93,41 @@ async def lifespan():
         logger.error("Failed to initialize Docker client", extra={"error": str(e)})
         raise
 
+    # Run reconciliation on startup
+    try:
+        reconciliation_manager = get_reconciliation_manager()
+        stats = await reconciliation_manager.reconcile()
+        logger.info("Initial reconciliation completed", extra=stats)
+    except Exception as e:
+        logger.warning("Initial reconciliation failed", extra={"error": str(e)})
+
+    # Start background maintenance
+    try:
+        maintenance_manager = get_maintenance_manager()
+        await maintenance_manager.start()
+        logger.info("Background maintenance started")
+    except Exception as e:
+        logger.warning("Failed to start maintenance", extra={"error": str(e)})
+
     yield
 
     # Cleanup
     logger.info("Shutting down MCP DevBench server")
+
+    # Stop background maintenance
+    try:
+        maintenance_manager = get_maintenance_manager()
+        await maintenance_manager.stop()
+    except Exception as e:
+        logger.warning("Failed to stop maintenance", extra={"error": str(e)})
+
+    # Run graceful shutdown
+    try:
+        shutdown_coordinator = get_shutdown_coordinator()
+        await shutdown_coordinator.initiate_shutdown()
+    except Exception as e:
+        logger.warning("Shutdown coordinator failed", extra={"error": str(e)})
+
     await close_db()
     close_docker_client()
     logger.info("MCP DevBench server stopped")
@@ -615,6 +649,53 @@ async def fs_list(input_data: FileListInput) -> FileListOutput:
         raise
     except Exception as e:
         logger.error("Failed to list directory", extra={"error": str(e)})
+        raise
+
+
+# ========== Feature 6.2: Reconciliation Tool ==========
+
+
+class ReconcileOutput(BaseModel):
+    """Output model for reconcile operation."""
+
+    discovered: int
+    adopted: int
+    cleaned_up: int
+    orphaned: int
+    errors: int
+
+
+@mcp.tool()
+async def reconcile() -> ReconcileOutput:
+    """
+    Run container reconciliation to sync Docker state with database.
+
+    This tool performs:
+    - Discovery of containers with com.mcp.devbench label
+    - Adoption of running containers not in database
+    - Cleanup of stopped containers
+    - Removal of orphaned transient containers
+    - Cleanup of incomplete exec entries
+
+    Returns:
+        ReconcileOutput with reconciliation statistics
+    """
+    logger.info("Manual reconciliation requested")
+
+    try:
+        reconciliation_manager = get_reconciliation_manager()
+        stats = await reconciliation_manager.reconcile()
+
+        return ReconcileOutput(
+            discovered=stats["discovered"],
+            adopted=stats["adopted"],
+            cleaned_up=stats["cleaned_up"],
+            orphaned=stats["orphaned"],
+            errors=stats["errors"],
+        )
+
+    except Exception as e:
+        logger.error("Reconciliation failed", extra={"error": str(e)})
         raise
 
 

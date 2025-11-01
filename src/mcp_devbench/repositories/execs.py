@@ -91,3 +91,23 @@ class ExecRepository(BaseRepository[Exec]):
         stmt = select(Exec).where(Exec.ended_at.is_not(None), Exec.ended_at < cutoff)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def cleanup_old(self, hours: int = 24) -> int:
+        """
+        Clean up completed execs older than specified hours.
+
+        Args:
+            hours: Number of hours
+
+        Returns:
+            Number of execs deleted
+        """
+        from datetime import timedelta, timezone
+
+        from sqlalchemy import delete
+
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        stmt = delete(Exec).where(Exec.ended_at.is_not(None), Exec.ended_at < cutoff)
+        result = await self.session.execute(stmt)
+
+        return result.rowcount
