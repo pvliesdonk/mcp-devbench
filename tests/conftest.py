@@ -43,18 +43,38 @@ async def db_session(test_db_engine) -> AsyncGenerator[AsyncSession, None]:
         await session.rollback()
 
 
+@pytest.fixture(scope="session")
+def docker_available():
+    """Check if Docker daemon is available."""
+    try:
+        client = get_docker_client()
+        client.ping()
+        return True
+    except Exception:
+        return False
+
+
+@pytest.fixture
+def require_docker(docker_available):
+    """Skip test if Docker is not available."""
+    if not docker_available:
+        pytest.skip("Docker daemon not available - skipping E2E test")
+
+
 @pytest.fixture(scope="session", autouse=True)
-async def setup_integration_env():
+async def setup_integration_env(docker_available):
     """Setup environment for integration tests."""
-    # Initialize database for integration tests
+    # Initialize database for all tests
     await init_db()
 
-    # Pull alpine image for tests
-    docker_client = get_docker_client()
-    try:
-        docker_client.images.pull("alpine:latest")
-    except Exception:
-        pass  # Image might already exist
+    # Only pull images if Docker is available
+    if docker_available:
+        docker_client = get_docker_client()
+        try:
+            docker_client.images.pull("alpine:latest")
+            docker_client.images.pull("python:3.11-slim")
+        except Exception:
+            pass  # Images might already exist
 
     yield
 
