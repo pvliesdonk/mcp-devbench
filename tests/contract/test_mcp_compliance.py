@@ -11,8 +11,6 @@ from mcp_devbench.mcp_tools import (
     CancelInput,
     ExecInput,
     ExecPollInput,
-    FileDeleteInput,
-    FileListInput,
     FileReadInput,
     FileWriteInput,
     KillInput,
@@ -154,9 +152,7 @@ def test_file_operations_input_validation():
     assert read_input.path == "/workspace/file.txt"
 
     # Valid FileWriteInput
-    write_input = FileWriteInput(
-        container_id="c_test", path="/workspace/file.txt", content=b"test"
-    )
+    write_input = FileWriteInput(container_id="c_test", path="/workspace/file.txt", content=b"test")
     assert write_input.content == b"test"
 
     # Invalid - missing required fields
@@ -164,9 +160,7 @@ def test_file_operations_input_validation():
         FileReadInput(path="/workspace/file.txt")  # Missing container_id
 
     with pytest.raises(ValidationError):
-        FileWriteInput(
-            container_id="c_test", path="/workspace/file.txt"
-        )  # Missing content
+        FileWriteInput(container_id="c_test", path="/workspace/file.txt")  # Missing content
 
 
 def test_model_serialization():
@@ -254,16 +248,18 @@ def test_field_descriptions_present():
 
         # Check that fields have descriptions
         for field_name, field_info in properties.items():
-            assert (
-                "description" in field_info
-            ), f"{model_class.__name__}.{field_name} missing description"
+            assert "description" in field_info, (
+                f"{model_class.__name__}.{field_name} missing description"
+            )
 
 
 @pytest.mark.asyncio
 async def test_attach_tool_contract():
     """Test attach tool contract compliance."""
     # Spawn a container first
-    spawn_result = await spawn(SpawnInput(image="alpine:latest", persistent=False, alias="attach-test"))
+    spawn_result = await spawn(
+        SpawnInput(image="alpine:latest", persistent=False, alias="attach-test")
+    )
     container_id = spawn_result.container_id
 
     try:

@@ -1,10 +1,11 @@
 """Property-based tests for idempotency features."""
 
 import pytest
-from hypothesis import given, strategies as st, settings, HealthCheck
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 from mcp_devbench import server
-from mcp_devbench.mcp_tools import SpawnInput, ExecInput, KillInput
+from mcp_devbench.mcp_tools import ExecInput, KillInput, SpawnInput
 
 # Access the underlying functions (unwrapped from @mcp.tool decorator)
 spawn = server.spawn.fn

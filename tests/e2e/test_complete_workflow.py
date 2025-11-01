@@ -5,16 +5,10 @@ import asyncio
 import pytest
 
 from mcp_devbench import server
-from mcp_devbench.managers.attachment_manager import get_attachment_manager
-from mcp_devbench.managers.container_manager import get_container_manager
-from mcp_devbench.managers.exec_manager import get_exec_manager
-from mcp_devbench.managers.filesystem_manager import get_filesystem_manager
 from mcp_devbench.mcp_tools import (
     AttachInput,
-    AttachOutput,
     CancelInput,
     ExecInput,
-    ExecOutput,
     ExecPollInput,
     FileDeleteInput,
     FileListInput,
@@ -22,7 +16,6 @@ from mcp_devbench.mcp_tools import (
     FileWriteInput,
     KillInput,
     SpawnInput,
-    SpawnOutput,
 )
 from mcp_devbench.utils.exceptions import ContainerNotFoundError
 
@@ -56,9 +49,7 @@ async def test_complete_container_lifecycle():
     try:
         # 2. Attach to container
         attach_result = await attach(
-            AttachInput(
-                target=container_id, client_name="e2e-client", session_id="e2e-session-001"
-            )
+            AttachInput(target=container_id, client_name="e2e-client", session_id="e2e-session-001")
         )
         assert attach_result.container_id == container_id
         assert attach_result.alias == "e2e-test-container"
@@ -114,9 +105,7 @@ async def test_complete_container_lifecycle():
         assert read_result.etag is not None
 
         # 7. List files
-        list_result = await fs_list(
-            FileListInput(container_id=container_id, path="/workspace")
-        )
+        list_result = await fs_list(FileListInput(container_id=container_id, path="/workspace"))
         assert list_result.path == "/workspace"
         assert any(entry.path == "/workspace/test.txt" for entry in list_result.entries)
 
@@ -368,7 +357,7 @@ async def test_multiple_sequential_execs():
 
             # Verify expected output
             output_found = False
-            expected = f"command{i+1}"
+            expected = f"command{i + 1}"
             for msg in poll_result.messages:
                 if msg.data and expected in msg.data:
                     output_found = True

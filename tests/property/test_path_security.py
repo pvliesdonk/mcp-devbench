@@ -1,7 +1,8 @@
 """Property-based tests for path security validation."""
 
 import pytest
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 
 from mcp_devbench.managers.filesystem_manager import FilesystemManager
 from mcp_devbench.utils.exceptions import PathSecurityError
@@ -16,9 +17,9 @@ def test_path_validation_never_escapes_workspace(path: str):
     try:
         validated = manager._validate_path(path)
         # If validation passes, path must start with /workspace
-        assert validated.startswith(
-            "/workspace"
-        ), f"Path {validated} does not start with /workspace"
+        assert validated.startswith("/workspace"), (
+            f"Path {validated} does not start with /workspace"
+        )
     except (PathSecurityError, ValueError):
         # Expected for malicious or invalid paths
         pass
@@ -64,7 +65,13 @@ def test_path_with_multiple_dots(dot_count: int):
 
 
 @pytest.mark.property
-@given(st.text(alphabet=st.characters(blacklist_categories=("Cs",), blacklist_characters=("\x00",)), min_size=0, max_size=200))
+@given(
+    st.text(
+        alphabet=st.characters(blacklist_categories=("Cs",), blacklist_characters=("\x00",)),
+        min_size=0,
+        max_size=200,
+    )
+)
 def test_path_with_special_characters(path_suffix: str):
     """Property: Special characters in paths should be handled safely."""
     manager = FilesystemManager()

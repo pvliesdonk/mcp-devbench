@@ -181,8 +181,8 @@ async def test_file_write_etag_mismatch():
             )
         )
 
-        # Modify file (etag changes)
-        write_result2 = await fs_write(
+        # Modify file (etag changes) - not used, but needed to change etag
+        await fs_write(
             FileWriteInput(
                 container_id=container_id,
                 path="/workspace/etag-test.txt",

@@ -62,9 +62,7 @@ async def test_exec_throughput(benchmark):
         # Wait for completion
         max_attempts = 20
         for _ in range(max_attempts):
-            poll_result = await exec_poll(
-                ExecPollInput(exec_id=exec_result.exec_id, after_seq=0)
-            )
+            poll_result = await exec_poll(ExecPollInput(exec_id=exec_result.exec_id, after_seq=0))
             if poll_result.complete:
                 return poll_result
             await asyncio.sleep(0.1)
@@ -209,6 +207,7 @@ async def test_concurrent_execs_performance(benchmark):
         # Wait for all to complete
         poll_tasks = []
         for result in results:
+
             async def poll_until_complete(exec_id):
                 for _ in range(20):
                     poll_result = await exec_poll(ExecPollInput(exec_id=exec_id, after_seq=0))
