@@ -1,6 +1,6 @@
 [project]
 name = "mcp-devbench"
-version = "0.1.0"
+version = "1.0.0"
 description = "MCP DevBench - Docker container management server with MCP protocol support"
 readme = "README.md"
 authors = [
