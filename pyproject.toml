@@ -30,6 +30,13 @@ dev = [
     "pyright>=1.1.389",
     "pre-commit>=4.0.0",
 ]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=0.24.0",
+    "mkdocs-awesome-pages-plugin>=2.9.0",
+    "mkdocs-git-revision-date-localized-plugin>=1.2.0",
+]
 
 [project.scripts]
 mcp-devbench = "mcp_devbench.server:main"
