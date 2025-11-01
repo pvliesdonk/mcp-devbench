@@ -54,4 +54,5 @@ jobs:
           GH_TOKEN: ${{ secrets.RELEASE_PAT }}     # use PAT for pushes & GitHub API
           PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}  # if using token-based PyPI
         run: |
+          uv run -- semantic-release -v version
           uv run -- semantic-release -v publish
