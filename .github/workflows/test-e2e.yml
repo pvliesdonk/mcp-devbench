@@ -1,0 +1,60 @@
+name: E2E Tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "copilot/**"
+      - "claude/**"
+  workflow_dispatch:
+
+jobs:
+  e2e-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Pull test images
+        run: |
+          docker pull alpine:latest
+          docker pull python:3.11-slim
+
+      - name: Run E2E tests
+        run: uv run pytest tests/e2e/ -v --tb=short --maxfail=5
+        env:
+          MCP_LOG_LEVEL: DEBUG
+
+      - name: Cleanup containers
+        if: always()
+        run: |
+          # Kill any remaining test containers
+          docker ps -aq --filter "name=e2e-" | xargs -r docker rm -f
+          docker ps -aq --filter "name=alias-" | xargs -r docker rm -f
+          docker ps -aq --filter "name=persistent-" | xargs -r docker rm -f
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: |
+            pytest-*.xml
+            htmlcov/
+          retention-days: 7

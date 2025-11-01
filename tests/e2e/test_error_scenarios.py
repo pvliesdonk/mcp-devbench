@@ -27,7 +27,7 @@ fs_write = server.fs_write.fn
 
 
 @pytest.mark.e2e
-async def test_spawn_with_invalid_image():
+async def test_spawn_with_invalid_image(require_docker):
     """Test spawning container with non-existent image."""
 
     # This should fail during image resolution or pull
@@ -36,7 +36,7 @@ async def test_spawn_with_invalid_image():
 
 
 @pytest.mark.e2e
-async def test_attach_to_nonexistent_container():
+async def test_attach_to_nonexistent_container(require_docker):
     """Test attaching to a container that doesn't exist."""
 
     with pytest.raises(ContainerNotFoundError):
@@ -50,7 +50,7 @@ async def test_attach_to_nonexistent_container():
 
 
 @pytest.mark.e2e
-async def test_exec_on_nonexistent_container():
+async def test_exec_on_nonexistent_container(require_docker):
     """Test executing command on non-existent container."""
 
     with pytest.raises(ContainerNotFoundError):
@@ -64,7 +64,7 @@ async def test_exec_on_nonexistent_container():
 
 
 @pytest.mark.e2e
-async def test_path_traversal_attack():
+async def test_path_traversal_attack(require_docker):
     """Test that path traversal attacks are prevented."""
 
     spawn_result = await spawn(SpawnInput(image="alpine:latest", persistent=False))
@@ -95,7 +95,7 @@ async def test_path_traversal_attack():
 
 
 @pytest.mark.e2e
-async def test_read_nonexistent_file():
+async def test_read_nonexistent_file(require_docker):
     """Test reading a file that doesn't exist."""
 
     spawn_result = await spawn(SpawnInput(image="alpine:latest", persistent=False))
@@ -115,7 +115,7 @@ async def test_read_nonexistent_file():
 
 
 @pytest.mark.e2e
-async def test_spawn_with_duplicate_alias():
+async def test_spawn_with_duplicate_alias(require_docker):
     """Test spawning containers with duplicate alias."""
 
     # Spawn first container with alias
@@ -143,7 +143,7 @@ async def test_spawn_with_duplicate_alias():
 
 
 @pytest.mark.e2e
-async def test_exec_with_empty_command():
+async def test_exec_with_empty_command(require_docker):
     """Test exec with empty command list."""
 
     spawn_result = await spawn(SpawnInput(image="alpine:latest", persistent=False))
@@ -165,7 +165,7 @@ async def test_exec_with_empty_command():
 
 
 @pytest.mark.e2e
-async def test_file_write_etag_mismatch():
+async def test_file_write_etag_mismatch(require_docker):
     """Test conditional write with mismatched etag."""
 
     spawn_result = await spawn(SpawnInput(image="alpine:latest", persistent=False))
@@ -206,7 +206,7 @@ async def test_file_write_etag_mismatch():
 
 
 @pytest.mark.e2e
-async def test_kill_already_killed_container():
+async def test_kill_already_killed_container(require_docker):
     """Test killing a container that's already been killed."""
 
     spawn_result = await spawn(SpawnInput(image="alpine:latest", persistent=False))
@@ -221,7 +221,7 @@ async def test_kill_already_killed_container():
 
 
 @pytest.mark.e2e
-async def test_absolute_path_requirement():
+async def test_absolute_path_requirement(require_docker):
     """Test that relative paths are rejected."""
 
     spawn_result = await spawn(SpawnInput(image="alpine:latest", persistent=False))
@@ -242,7 +242,7 @@ async def test_absolute_path_requirement():
 
 
 @pytest.mark.e2e
-async def test_workspace_root_protection():
+async def test_workspace_root_protection(require_docker):
     """Test that workspace root cannot be deleted."""
 
     spawn_result = await spawn(SpawnInput(image="alpine:latest", persistent=False))
@@ -266,7 +266,7 @@ async def test_workspace_root_protection():
 
 
 @pytest.mark.e2e
-async def test_spawn_idempotency_with_same_key():
+async def test_spawn_idempotency_with_same_key(require_docker):
     """Test that spawn with same idempotency key returns same container."""
 
     idempotency_key = "test-idempotency-key-001"
@@ -298,7 +298,7 @@ async def test_spawn_idempotency_with_same_key():
 
 
 @pytest.mark.e2e
-async def test_exec_idempotency_with_same_key():
+async def test_exec_idempotency_with_same_key(require_docker):
     """Test that exec with same idempotency key doesn't duplicate execution."""
 
     spawn_result = await spawn(SpawnInput(image="alpine:latest", persistent=False))

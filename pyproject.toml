@@ -51,10 +51,14 @@ build-backend = "hatchling.build"
 asyncio_mode = "auto"
 testpaths = ["tests"]
 markers = [
-    "e2e: End-to-end tests (deselect with '-m \"not e2e\"')",
-    "integration: Integration tests",
+    "e2e: End-to-end tests requiring Docker daemon (automatically skipped if Docker unavailable; deselect with '-m \"not e2e\"')",
+    "integration: Integration tests requiring external services",
     "performance: Performance benchmarks",
-    "property: Property-based tests",
+    "property: Property-based tests using Hypothesis",
+]
+# Add filter warnings to reduce noise
+filterwarnings = [
+    "ignore::DeprecationWarning",
 ]
 
 [tool.coverage.run]

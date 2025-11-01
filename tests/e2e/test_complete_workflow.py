@@ -33,7 +33,7 @@ fs_list = server.fs_list.fn
 
 
 @pytest.mark.e2e
-async def test_complete_container_lifecycle():
+async def test_complete_container_lifecycle(require_docker):
     """Test full workflow: spawn -> attach -> exec -> fs -> kill."""
 
     # 1. Spawn container
@@ -129,7 +129,7 @@ async def test_complete_container_lifecycle():
 
 
 @pytest.mark.e2e
-async def test_attach_by_alias():
+async def test_attach_by_alias(require_docker):
     """Test attaching to container using alias instead of ID."""
 
     # Spawn container with alias
@@ -157,7 +157,7 @@ async def test_attach_by_alias():
 
 
 @pytest.mark.e2e
-async def test_exec_with_environment_variables():
+async def test_exec_with_environment_variables(require_docker):
     """Test exec with custom environment variables."""
 
     spawn_result = await spawn(SpawnInput(image="python:3.11-slim", persistent=False))
@@ -199,7 +199,7 @@ async def test_exec_with_environment_variables():
 
 
 @pytest.mark.e2e
-async def test_exec_cancellation():
+async def test_exec_cancellation(require_docker):
     """Test cancelling a running execution."""
 
     spawn_result = await spawn(SpawnInput(image="alpine:latest", persistent=False))
@@ -236,7 +236,7 @@ async def test_exec_cancellation():
 
 
 @pytest.mark.e2e
-async def test_file_operations_with_directories():
+async def test_file_operations_with_directories(require_docker):
     """Test filesystem operations with nested directories."""
 
     spawn_result = await spawn(SpawnInput(image="alpine:latest", persistent=False))
@@ -276,7 +276,7 @@ async def test_file_operations_with_directories():
 
 
 @pytest.mark.e2e
-async def test_persistent_container():
+async def test_persistent_container(require_docker):
     """Test persistent container lifecycle."""
 
     # Spawn persistent container
@@ -308,7 +308,7 @@ async def test_persistent_container():
 
 
 @pytest.mark.e2e
-async def test_cleanup_after_killed_container():
+async def test_cleanup_after_killed_container(require_docker):
     """Test that operations fail gracefully after container is killed."""
 
     spawn_result = await spawn(SpawnInput(image="alpine:latest", persistent=False))
@@ -323,7 +323,7 @@ async def test_cleanup_after_killed_container():
 
 
 @pytest.mark.e2e
-async def test_multiple_sequential_execs():
+async def test_multiple_sequential_execs(require_docker):
     """Test multiple sequential command executions in same container."""
 
     spawn_result = await spawn(SpawnInput(image="python:3.11-slim", persistent=False))
