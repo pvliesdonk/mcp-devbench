@@ -1,6 +1,6 @@
 """Repository for Container model operations."""
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import List
 
 from sqlalchemy import select
@@ -138,7 +138,7 @@ class ContainerRepository(BaseRepository[Container]):
         container = await self.get(container_id)
         if container:
             container.status = status
-            container.last_seen = datetime.utcnow()
+            container.last_seen = datetime.now(timezone.utc)
             await self.session.flush()
             await self.session.refresh(container)
         return container
@@ -155,7 +155,7 @@ class ContainerRepository(BaseRepository[Container]):
         """
         container = await self.get(container_id)
         if container:
-            container.last_seen = datetime.utcnow()
+            container.last_seen = datetime.now(timezone.utc)
             await self.session.flush()
             await self.session.refresh(container)
         return container
@@ -170,9 +170,7 @@ class ContainerRepository(BaseRepository[Container]):
         Returns:
             List of old transient containers
         """
-        from datetime import timedelta
-
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         stmt = select(Container).where(
             Container.persistent.is_(False), Container.last_seen < cutoff
         )

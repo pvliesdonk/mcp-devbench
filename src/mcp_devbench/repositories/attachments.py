@@ -1,6 +1,6 @@
 """Repository for Attachment model operations."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 
 from sqlalchemy import select
@@ -84,7 +84,7 @@ class AttachmentRepository(BaseRepository[Attachment]):
         """
         attachment = await self.get(attachment_id)
         if attachment and attachment.detached_at is None:
-            attachment.detached_at = datetime.utcnow()
+            attachment.detached_at = datetime.now(timezone.utc)
             await self.session.flush()
             await self.session.refresh(attachment)
         return attachment
@@ -102,7 +102,7 @@ class AttachmentRepository(BaseRepository[Attachment]):
         attachments = await self.get_active_by_container(container_id)
         count = 0
         for attachment in attachments:
-            attachment.detached_at = datetime.utcnow()
+            attachment.detached_at = datetime.now(timezone.utc)
             count += 1
         await self.session.flush()
         return count
