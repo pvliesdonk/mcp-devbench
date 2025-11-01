@@ -1,6 +1,6 @@
 """Container lifecycle manager for Docker operations."""
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import List
 from uuid import uuid4
 
@@ -71,8 +71,6 @@ class ContainerManager:
                 if existing:
                     # Check if key is still valid (within 24 hours)
                     if existing.idempotency_key_created_at:
-                        from datetime import timedelta, timezone
-
                         # Make sure the stored datetime is timezone-aware
                         key_created_at = existing.idempotency_key_created_at
                         if key_created_at.tzinfo is None:
@@ -152,8 +150,6 @@ class ContainerManager:
             )
 
             # Save to database
-            from datetime import timezone
-
             now = datetime.now(timezone.utc)
             container = Container(
                 id=container_id,
