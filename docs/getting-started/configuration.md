@@ -293,7 +293,7 @@ services:
 
 ## Environment Variable Reference
 
-For a complete list of all environment variables, see the [Settings Reference](../api/settings-reference.md).
+For a complete list of all environment variables with their defaults and descriptions, refer to the configuration examples above and the [Security Guide](../guide/security.md) for security-related settings.
 
 ## Next Steps
 
