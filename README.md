@@ -403,6 +403,8 @@ All operations generate audit events:
 
 ## 🧪 Development
 
+For detailed development guidelines, see our [Project Style Guide](docs/development/project-style.md).
+
 ### Running Tests
 
 ```bash
