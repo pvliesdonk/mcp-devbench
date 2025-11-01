@@ -105,6 +105,7 @@ class Settings(BaseSettings):
     bearer_token: str | None = Field(
         default=None,
         description="Bearer token for bearer authentication mode",
+        repr=False,
     )
 
     # OAuth/OIDC configuration
@@ -116,6 +117,7 @@ class Settings(BaseSettings):
     oauth_client_secret: str | None = Field(
         default=None,
         description="OAuth/OIDC client secret",
+        repr=False,
     )
 
     oauth_config_url: str | None = Field(

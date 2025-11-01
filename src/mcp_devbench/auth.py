@@ -36,14 +36,6 @@ def create_auth_provider() -> Any | None:
         return StaticTokenVerifier(tokens=tokens)
 
     if settings.auth_mode == "oauth":
-        # Validate required OAuth configuration
-        if not settings.oauth_client_id:
-            raise ValueError("OAuth authentication requires MCP_OAUTH_CLIENT_ID to be set")
-        if not settings.oauth_client_secret:
-            raise ValueError("OAuth authentication requires MCP_OAUTH_CLIENT_SECRET to be set")
-        if not settings.oauth_base_url:
-            raise ValueError("OAuth authentication requires MCP_OAUTH_BASE_URL to be set")
-
         # Note: OAuth proxy requires manual configuration of provider endpoints
         # For full OAuth support, users should configure an OIDC provider instead
         logger.warning(

@@ -61,11 +61,9 @@ class HealthCheckResponse(BaseModel):
     version: str = "0.1.0"
 
 
-# Initialize authentication provider
-auth_provider = create_auth_provider()
-
-# Initialize FastMCP server with authentication
-mcp = FastMCP("MCP DevBench", auth=auth_provider)
+# Initialize FastMCP server without authentication initially
+# Auth provider will be set in main() after settings are loaded
+mcp = FastMCP("MCP DevBench")
 logger = get_logger(__name__)
 
 
@@ -626,6 +624,15 @@ def main() -> None:
     """Main entry point for the MCP DevBench server."""
     settings = get_settings()
 
+    # Setup logging first so auth initialization can be properly logged
+    setup_logging(log_level=settings.log_level, log_format=settings.log_format)
+
+    # Initialize authentication provider after settings and logging are configured
+    auth_provider = create_auth_provider()
+
+    # Set the auth provider on the FastMCP server
+    mcp.auth = auth_provider
+
     logger.info(
         "Starting server",
         extra={
@@ -646,9 +653,7 @@ def main() -> None:
             "streamable-http": "streamable",
         }
 
-        transport = transport_map.get(settings.transport_mode)
-        if not transport:
-            raise ValueError(f"Invalid transport mode: {settings.transport_mode}")
+        transport = transport_map[settings.transport_mode]
 
         # Prepare run kwargs based on transport mode
         run_kwargs = {"transport": transport}

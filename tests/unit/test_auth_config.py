@@ -111,9 +111,6 @@ class TestAuthProvider:
         """Test OAuth mode raises NotImplementedError."""
         mock_settings = MagicMock()
         mock_settings.auth_mode = "oauth"
-        mock_settings.oauth_client_id = "client-id"
-        mock_settings.oauth_client_secret = "client-secret"
-        mock_settings.oauth_base_url = "https://example.com"
         mock_get_settings.return_value = mock_settings
 
         with pytest.raises(NotImplementedError, match="OAuth mode requires manual"):
