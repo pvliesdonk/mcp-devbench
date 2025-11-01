@@ -2,55 +2,56 @@ name: Semantic Release
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   workflow_dispatch:
 
 permissions:
   contents: write
-  issues: write
-  pull-requests: write
   id-token: write
+  pull-requests: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   release:
     runs-on: ubuntu-latest
-    concurrency: release
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        token: ${{ secrets.GITHUB_TOKEN }}
-    
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-    
-    - name: Install uv
-      uses: astral-sh/setup-uv@v3
-      with:
-        version: "latest"
-    
-    - name: Install dependencies
-      run: |
-        uv sync --extra dev
-    
-    - name: Run tests
-      run: |
-        uv run pytest --cov=mcp_devbench --cov-report=term-missing
-    
-    - name: Python Semantic Release
-      id: release
-      uses: python-semantic-release/python-semantic-release@v9.14
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Publish to PyPI and GitHub
-      if: steps.release.outputs.released == 'true'
-      uses: python-semantic-release/publish-action@v9.14.0
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        pypi_token: ${{ secrets.PYPI_API_TOKEN }}
+    steps:
+      - name: Checkout (using admin PAT)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_PAT }}   # your admin PAT
+
+      - name: Configure Git author (for release commit)
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Install project (dev)
+        run: uv sync --extra dev
+
+      - name: Run tests
+        run: uv run pytest --cov=mcp_devbench --cov-report=term-missing
+
+      - name: Install python-semantic-release (CLI)
+        run: uv pip install --system --upgrade python-semantic-release
+
+      - name: Semantic Release (publish)
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}     # use PAT for pushes & GitHub API
+          PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}  # if using token-based PyPI
+        run: |
+          uv run semantic-release publish -v
